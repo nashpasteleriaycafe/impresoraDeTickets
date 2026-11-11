@@ -2,6 +2,7 @@ package com.nashpasteleria.impresoradetickets
 
 import android.app.PendingIntent
 import android.content.Context
+import android.graphics.Bitmap
 import android.content.Intent
 import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbDevice
@@ -108,4 +109,64 @@ object UsbEscPosPrinter {
         repeat(template.feedLines.coerceIn(0, 10)) { add(0x0A) }
         return out.toByteArray()
     }
+    /** Prints a monochrome raster bitmap using ESC/POS GS v 0. */
+    fun printBitmap(context: Context, bitmap: Bitmap, paperWidth: Int = 80, feedLines: Int = 3): String {
+        val manager = context.getSystemService(Context.USB_SERVICE) as UsbManager
+        val device = manager.deviceList.values.firstOrNull { hasBulkOut(it) }
+            ?: return "No se detectó una impresora USB compatible."
+        if (!manager.hasPermission(device)) {
+            val permissionIntent = PendingIntent.getBroadcast(context, 0,
+                Intent(ACTION_USB_PERMISSION).setPackage(context.packageName),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            manager.requestPermission(device, permissionIntent)
+            return "Aceptá el permiso USB y volvé a tocar Imprimir."
+        }
+        val target = findBulkOut(device) ?: return "No se encontró el canal USB de impresión."
+        val (intf, endpoint) = target
+        val connection = manager.openDevice(device) ?: return "No se pudo abrir la impresora USB."
+        if (!connection.claimInterface(intf, true)) { connection.close(); return "No se pudo reservar la interfaz USB." }
+        try {
+            val maxWidth = if (paperWidth == 58) 384 else 576
+            val scaledHeight = (bitmap.height * maxWidth.toFloat() / bitmap.width).toInt().coerceAtLeast(1)
+            val scaled = Bitmap.createScaledBitmap(bitmap, maxWidth, scaledHeight, true)
+            val bytesPerRow = (scaled.width + 7) / 8
+            val out = ArrayList<Byte>()
+            fun add(vararg values: Int) = values.forEach { out.add(it.toByte()) }
+            add(0x1B, 0x40, 0x1B, 0x61, 0x00)
+            var y = 0
+            while (y < scaled.height) {
+                val bandHeight = minOf(255, scaled.height - y)
+                add(0x1D, 0x76, 0x30, 0x00, bytesPerRow and 0xFF, (bytesPerRow shr 8) and 0xFF, bandHeight and 0xFF, (bandHeight shr 8) and 0xFF)
+                for (row in y until y + bandHeight) {
+                    for (bx in 0 until bytesPerRow) {
+                        var bits = 0
+                        for (bit in 0..7) {
+                            val x = bx * 8 + bit
+                            if (x < scaled.width) {
+                                val pixel = scaled.getPixel(x, row)
+                                val luminance = (android.graphics.Color.red(pixel) * 299 + android.graphics.Color.green(pixel) * 587 + android.graphics.Color.blue(pixel) * 114) / 1000
+                                if (luminance < 160) bits = bits or (0x80 shr bit)
+                            }
+                        }
+                        out.add(bits.toByte())
+                    }
+                }
+                y += bandHeight
+            }
+            repeat(feedLines.coerceIn(0, 10)) { add(0x0A) }
+            val payload = out.toByteArray()
+            var offset = 0
+            while (offset < payload.size) {
+                val count = minOf(2048, payload.size - offset)
+                val sent = connection.bulkTransfer(endpoint, payload, offset, count, 10000)
+                if (sent <= 0) return "La impresora no aceptó la imagen. Revisá papel y conexión USB."
+                offset += sent
+            }
+            return "Imagen enviada a la impresora USB."
+        } finally {
+            connection.releaseInterface(intf)
+            connection.close()
+        }
+    }
+
 }
