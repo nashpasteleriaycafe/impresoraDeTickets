@@ -89,9 +89,21 @@ object UsbEscPosPrinter {
         add(0x1B, 0x21, 0x00)
         val charset = Charset.forName("windows-1252")
         val lines = template.content.replace("\r\n", "\n").replace('\r', '\n').split('\n')
+        val maxChars = if (template.paperWidth == 58) 32 else 48
         lines.forEach { line ->
-            out.addAll(line.toByteArray(charset).toList())
-            add(0x0A)
+            val cells = line.split('\t')
+            if (cells.size <= 1) {
+                out.addAll(line.toByteArray(charset).toList())
+                add(0x0A)
+            } else {
+                val colWidth = (maxChars / cells.size).coerceAtLeast(1)
+                val rendered = cells.mapIndexed { index, cell ->
+                    val trimmed = cell.take(colWidth)
+                    if (index == cells.lastIndex) trimmed else trimmed.padEnd(colWidth, ' ')
+                }.joinToString("").take(maxChars)
+                out.addAll(rendered.toByteArray(charset).toList())
+                add(0x0A)
+            }
         }
         repeat(template.feedLines.coerceIn(0, 10)) { add(0x0A) }
         return out.toByteArray()
