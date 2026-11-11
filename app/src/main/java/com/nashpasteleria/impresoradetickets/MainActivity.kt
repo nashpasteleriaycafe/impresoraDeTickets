@@ -206,7 +206,7 @@ private fun TicketApp(context: Context) {
                                 Text("VISTA PREVIA DEL TICKET", fontSize = 10.sp, color = Muted, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
                                 Spacer(Modifier.height(12.dp))
                                 Box(Modifier.fillMaxWidth().background(Color(0xFFFFFCFC), RoundedCornerShape(12.dp)).padding(14.dp)) {
-                                    Text(selected?.content ?: "Creá una plantilla para empezar", fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 18.sp, color = Ink)
+                                    TicketContentPreview(selected?.content ?: "Creá una plantilla para empezar")
                                 }
                                 Spacer(Modifier.height(8.dp))
                                 Text("Papel térmico · ${selected?.paperWidth ?: 80} mm", fontSize = 11.sp, color = Muted)
@@ -374,6 +374,22 @@ private fun TicketApp(context: Context) {
 private fun updateTemplate(templates: MutableList<TicketTemplate>, updated: TicketTemplate, persist: () -> Unit) {
     val index = templates.indexOfFirst { it.id == updated.id }
     if (index >= 0) { templates[index] = updated; persist() }
+}
+
+@Composable
+private fun TicketContentPreview(content: String) {
+    val rows = remember(content) { content.split("\n").map { it.split("\t") } }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        rows.forEachIndexed { ri, cells ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+                cells.forEach { cell ->
+                    Box(Modifier.weight(1f).border(0.5.dp, Color(0xFFE9D6DC)).padding(horizontal = 4.dp, vertical = 5.dp)) {
+                        Text(cell, fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 15.sp, color = Ink)
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
