@@ -53,7 +53,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                Surface(Modifier.fillMaxSize()) { TicketApp(applicationContext) }
+                Surface(Modifier.fillMaxSize()) { TicketApp(this@MainActivity) }
             }
         }
     }
@@ -154,9 +154,13 @@ private fun TicketApp(context: Context) {
                 Card(Modifier.fillMaxWidth()) {
                     Text(selected?.content ?: "Creá una plantilla para empezar", Modifier.fillMaxWidth().padding(16.dp))
                 }
-                Button(onClick = {
-                    notice = "La vista previa está disponible. La conexión USB y la impresión ESC/POS todavía deben integrarse y probarse con tu modelo de impresora."
-                }, modifier = Modifier.fillMaxWidth()) { Text("Probar impresión") }
+                Button(
+                    onClick = {
+                        notice = selected?.let { UsbEscPosPrinter.print(context, it) }
+                            ?: "Primero creá o seleccioná una plantilla."
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Imprimir ticket por USB") }
                 Text("Las plantillas se guardan localmente en este dispositivo.")
             }
         }
