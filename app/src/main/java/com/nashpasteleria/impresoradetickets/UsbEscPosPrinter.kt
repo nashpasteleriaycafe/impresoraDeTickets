@@ -36,28 +36,31 @@ object UsbEscPosPrinter {
         val connection = manager.openDevice(device)
             ?: return "Android detectó el USB, pero no pudo abrirlo. Desconectá y reconectá el cable OTG y probá otra vez."
 
-        return connection.use { conn ->
-            val target = findBulkOut(device)
-                ?: return@use "Se detectó el USB, pero no se encontró un canal de impresión compatible."
-            val (intf, endpoint) = target
-            if (!conn.claimInterface(intf, true)) {
-                return@use "No se pudo reservar la interfaz USB de la impresora."
-            }
-            try {
-                val payload = buildEscPos(template)
-                var offset = 0
-                while (offset < payload.size) {
-                    val count = minOf(4096, payload.size - offset)
-                    val sent = conn.bulkTransfer(endpoint, payload, offset, count, 5000)
-                    if (sent <= 0) {
-                        return@use "La impresora no aceptó los datos. Revisá que esté encendida, con papel y sin luces de error."
-                    }
-                    offset += sent
+        val target = findBulkOut(device)
+        if (target == null) {
+            connection.close()
+            return "Se detectó el USB, pero no se encontró un canal de impresión compatible."
+        }
+        val (intf, endpoint) = target
+        if (!connection.claimInterface(intf, true)) {
+            connection.close()
+            return "No se pudo reservar la interfaz USB de la impresora."
+        }
+        try {
+            val payload = buildEscPos(template)
+            var offset = 0
+            while (offset < payload.size) {
+                val count = minOf(4096, payload.size - offset)
+                val sent = connection.bulkTransfer(endpoint, payload, offset, count, 5000)
+                if (sent <= 0) {
+                    return "La impresora no aceptó los datos. Revisá que esté encendida, con papel y sin luces de error."
                 }
-                "Ticket enviado a la impresora USB. Si no salió papel, revisá el cable OTG, el estado de la impresora y el permiso USB."
-            } finally {
-                conn.releaseInterface(intf)
+                offset += sent
             }
+            return "Ticket enviado a la impresora USB. Si no salió papel, revisá el cable OTG, el estado de la impresora y el permiso USB."
+        } finally {
+            connection.releaseInterface(intf)
+            connection.close()
         }
     }
 
