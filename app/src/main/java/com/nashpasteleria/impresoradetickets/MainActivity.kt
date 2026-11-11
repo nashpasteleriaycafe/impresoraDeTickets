@@ -1,6 +1,9 @@
 package com.nashpasteleria.impresoradetickets
 
 import android.content.Context
+import android.graphics.BitmapFactory
+import android.graphics.Bitmap
+import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -270,7 +273,17 @@ private fun TicketApp(context: Context) {
                             Button(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
                                 Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Elegir imagen")
                             }
-                            Text("La selección de archivos funciona; incorporarlos al ticket impreso queda para una próxima mejora.", fontSize = 11.sp, color = Muted)
+                            Button(onClick = {
+                                val uri = selectedImage
+                                notice = if (uri == null) "Primero elegí una imagen." else runCatching {
+                                    val bitmap = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+                                        ?: error("No se pudo leer la imagen.")
+                                    UsbEscPosPrinter.printBitmap(context, bitmap, selected?.paperWidth ?: 80, selected?.feedLines ?: 3)
+                                }.getOrElse { "No se pudo preparar la imagen: " + (it.message ?: "error desconocido") }
+                            }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
+                                Icon(Icons.Default.Print, null); Spacer(Modifier.width(8.dp)); Text("Imprimir imagen por USB")
+                            }
+                            Text("La imagen se convierte a blanco y negro y se envía como gráfico ESC/POS.", fontSize = 11.sp, color = Muted)
                         }
                     }
                 }
@@ -286,7 +299,28 @@ private fun TicketApp(context: Context) {
                             Button(onClick = { pdfPicker.launch(arrayOf("application/pdf")) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
                                 Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Elegir PDF")
                             }
-                            Text("La conversión del PDF a contenido imprimible queda para una próxima mejora.", fontSize = 11.sp, color = Muted)
+                            Button(onClick = {
+                                val uri = selectedPdf
+                                notice = if (uri == null) "Primero elegí un PDF." else runCatching {
+                                    val descriptor = context.contentResolver.openFileDescriptor(uri, "r") ?: error("No se pudo abrir el PDF.")
+                                    descriptor.use { pfd ->
+                                        PdfRenderer(pfd).use { renderer ->
+                                            if (renderer.pageCount == 0) error("El PDF no contiene páginas.")
+                                            renderer.openPage(0).use { page ->
+                                                val targetWidth = if ((selected?.paperWidth ?: 80) == 58) 384 else 576
+                                                val targetHeight = (page.height * targetWidth.toFloat() / page.width).toInt().coerceAtLeast(1)
+                                                val bitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+                                                bitmap.eraseColor(android.graphics.Color.WHITE)
+                                                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
+                                                UsbEscPosPrinter.printBitmap(context, bitmap, selected?.paperWidth ?: 80, selected?.feedLines ?: 3)
+                                            }
+                                        }
+                                    }
+                                }.getOrElse { "No se pudo imprimir la primera página del PDF: " + (it.message ?: "error desconocido") }
+                            }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
+                                Icon(Icons.Default.Print, null); Spacer(Modifier.width(8.dp)); Text("Imprimir primera página por USB")
+                            }
+                            Text("El PDF se rasteriza en blanco y negro; por ahora se imprime la primera página.", fontSize = 11.sp, color = Muted)
                         }
                     }
                 }
