@@ -1,43 +1,52 @@
 package com.nashpasteleria.impresoradetickets
 
 import android.content.Context
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
+
+private val Rose = Color(0xFFE96B8E)
+private val RoseDark = Color(0xFFB94467)
+private val RosePale = Color(0xFFFFEEF2)
+private val Ink = Color(0xFF30262A)
+private val Muted = Color(0xFF82757A)
+private val Canvas = Color(0xFFFFF9FA)
+private val Line = Color(0xFFF0DDE2)
 
 data class TicketTemplate(
     val id: String = UUID.randomUUID().toString(),
@@ -48,12 +57,19 @@ data class TicketTemplate(
     val cutAfterPrint: Boolean = true
 )
 
+private enum class AppTab(val title: String) {
+    DESIGN("Diseñador"), TEMPLATES("Plantillas"), IMAGES("Imágenes"), PDF("PDF"), SETTINGS("Ajustes")
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
-                Surface(Modifier.fillMaxSize()) { TicketApp(this@MainActivity) }
+            MaterialTheme(colorScheme = lightColorScheme(
+                primary = RoseDark, onPrimary = Color.White, secondary = Rose,
+                background = Canvas, surface = Color.White, onSurface = Ink, onBackground = Ink
+            )) {
+                Surface(Modifier.fillMaxSize(), color = Canvas) { TicketApp(this@MainActivity) }
             }
         }
     }
@@ -86,7 +102,13 @@ private fun TicketApp(context: Context) {
     var selectedId by remember { mutableStateOf(templates.first().id) }
     var editing by remember { mutableStateOf<TicketTemplate?>(null) }
     var showEditor by remember { mutableStateOf(false) }
+    var deleteCandidate by remember { mutableStateOf<TicketTemplate?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
+    var activeTab by remember { mutableStateOf(AppTab.DESIGN) }
+    var selectedImage by remember { mutableStateOf<Uri?>(null) }
+    var selectedPdf by remember { mutableStateOf<Uri?>(null) }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { selectedImage = it }
+    val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { selectedPdf = it }
     val selected = templates.firstOrNull { it.id == selectedId } ?: templates.firstOrNull()
 
     fun persist() {
@@ -94,110 +116,308 @@ private fun TicketApp(context: Context) {
         templates.forEach { t ->
             arr.put(JSONObject().apply {
                 put("id", t.id); put("name", t.name); put("content", t.content)
-                put("paperWidth", t.paperWidth); put("feedLines", t.feedLines)
-                put("cutAfterPrint", t.cutAfterPrint)
+                put("paperWidth", t.paperWidth); put("feedLines", t.feedLines); put("cutAfterPrint", t.cutAfterPrint)
             })
         }
         prefs.edit().putString("items", arr.toString()).apply()
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Impresora de Tickets") }) }) { insets ->
+    Scaffold(
+        containerColor = Canvas,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(RosePale), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.ReceiptLong, null, tint = RoseDark)
+                        }
+                        Column {
+                            Text("Nash · Tickets", fontWeight = FontWeight.Bold, fontSize = 19.sp, color = Ink)
+                            Text("Diseñá. Guardá. Imprimí.", fontSize = 11.sp, color = Muted)
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Canvas)
+            )
+        },
+        bottomBar = {
+            NavigationBar(containerColor = Color.White, tonalElevation = 8.dp) {
+                AppTab.values().forEach { tab ->
+                    val icon = when (tab) {
+                        AppTab.DESIGN -> Icons.Default.ReceiptLong
+                        AppTab.TEMPLATES -> Icons.Default.ViewList
+                        AppTab.IMAGES -> Icons.Default.Image
+                        AppTab.PDF -> Icons.Default.PictureAsPdf
+                        AppTab.SETTINGS -> Icons.Default.Settings
+                    }
+                    NavigationBarItem(
+                        selected = activeTab == tab,
+                        onClick = { activeTab = tab },
+                        icon = { Icon(icon, contentDescription = tab.title) },
+                        label = { Text(tab.title, fontSize = 10.sp, maxLines = 1) },
+                        alwaysShowLabel = true
+                    )
+                }
+            }
+        }
+    ) { insets ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(insets).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.fillMaxSize().padding(insets).padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(top = 12.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            item {
-                Text("Configuración del ticket", style = MaterialTheme.typography.titleLarge)
-                Text("Prepará tus diseños para papel térmico de 58 u 80 mm.")
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = {
-                        selected?.let { t -> templates[templates.indexOfFirst { it.id == t.id }] = t.copy(paperWidth = 58); persist() }
-                    }) { Text("Papel 58 mm") }
-                    OutlinedButton(onClick = {
-                        selected?.let { t -> templates[templates.indexOfFirst { it.id == t.id }] = t.copy(paperWidth = 80); persist() }
-                    }) { Text("Papel 80 mm") }
+            when (activeTab) {
+                AppTab.DESIGN -> {
+                    item { WelcomeCard() }
+                    item { SectionHeading("Tu diseño", "Elegí una plantilla y prepará el ticket") }
+                    item {
+                        CardBlock {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(selected?.name ?: "Sin plantilla", fontWeight = FontWeight.SemiBold, color = Ink)
+                                    Text("${selected?.paperWidth ?: 80} mm · ${selected?.content?.lines()?.size ?: 0} líneas", color = Muted, fontSize = 12.sp)
+                                }
+                                OutlinedButton(onClick = { activeTab = AppTab.TEMPLATES }, shape = RoundedCornerShape(13.dp)) { Text("Cambiar") }
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                WidthChip("58 mm", selected?.paperWidth == 58) {
+                                    selected?.let { updateTemplate(templates, it.copy(paperWidth = 58), ::persist) }
+                                }
+                                WidthChip("80 mm", selected?.paperWidth != 58) {
+                                    selected?.let { updateTemplate(templates, it.copy(paperWidth = 80), ::persist) }
+                                }
+                                Spacer(Modifier.weight(1f))
+                                OutlinedButton(onClick = { editing = selected; showEditor = true }, shape = RoundedCornerShape(13.dp)) {
+                                    Icon(Icons.Default.Edit, null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(5.dp)); Text("Editar")
+                                }
+                            }
+                        }
+                    }
+                    item { SectionHeading("Vista previa", "Así se verá el contenido impreso") }
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().border(1.dp, Line, RoundedCornerShape(20.dp)),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            shape = RoundedCornerShape(20.dp)
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("VISTA PREVIA DEL TICKET", fontSize = 10.sp, color = Muted, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                                Spacer(Modifier.height(12.dp))
+                                Box(Modifier.fillMaxWidth().background(Color(0xFFFFFCFC), RoundedCornerShape(12.dp)).padding(14.dp)) {
+                                    Text(selected?.content ?: "Creá una plantilla para empezar", fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 18.sp, color = Ink)
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                Text("Papel térmico · ${selected?.paperWidth ?: 80} mm", fontSize = 11.sp, color = Muted)
+                            }
+                        }
+                    }
+                    item {
+                        Button(
+                            onClick = { notice = selected?.let { UsbEscPosPrinter.print(context, it) } ?: "Primero creá o seleccioná una plantilla." },
+                            modifier = Modifier.fillMaxWidth().height(54.dp),
+                            shape = RoundedCornerShape(17.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = RoseDark)
+                        ) {
+                            Icon(Icons.Default.Print, null); Spacer(Modifier.width(9.dp))
+                            Text("Imprimir ticket", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                    }
+                    item { Text("Conexión USB · 3nSTAR RPT001", color = Muted, fontSize = 12.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
                 }
-                Text("Ancho seleccionado: ${selected?.paperWidth ?: 80} mm")
-                Text("Avance: ${selected?.feedLines ?: 3} líneas · Corte: ${if (selected?.cutAfterPrint != false) "activado" else "desactivado"}")
-            }
-            item {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Plantillas", style = MaterialTheme.typography.titleLarge)
-                    Button(onClick = { editing = null; showEditor = true }) {
-                        Icon(Icons.Default.Add, contentDescription = null)
-                        Text(" Nueva")
+                AppTab.TEMPLATES -> {
+                    item { SectionHeading("Tus plantillas", "Guardá distintos diseños para cada necesidad") }
+                    item {
+                        Button(onClick = { editing = null; showEditor = true }, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(15.dp)) {
+                            Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Crear nueva plantilla")
+                        }
+                    }
+                    items(templates, key = { it.id }) { template ->
+                        CardBlock {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(RosePale), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.ReceiptLong, null, tint = RoseDark)
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(template.name, fontWeight = FontWeight.SemiBold, color = Ink)
+                                    Text("${template.paperWidth} mm · ${template.content.lines().size} líneas", color = Muted, fontSize = 12.sp)
+                                }
+                                IconButton(onClick = { selectedId = template.id; editing = template; showEditor = true }) {
+                                    Icon(Icons.Default.Edit, "Editar plantilla", tint = RoseDark)
+                                }
+                                IconButton(onClick = { deleteCandidate = template }) {
+                                    Icon(Icons.Default.Delete, "Eliminar plantilla", tint = Muted)
+                                }
+                            }
+                            OutlinedButton(onClick = { selectedId = template.id; activeTab = AppTab.DESIGN }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                                Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(17.dp))
+                                Spacer(Modifier.width(7.dp)); Text(if (selectedId == template.id) "Seleccionada · Ver diseño" else "Usar esta plantilla")
+                            }
+                        }
                     }
                 }
-            }
-            items(templates, key = { it.id }) { template ->
-                Card(Modifier.fillMaxWidth()) {
-                    Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(template.name, style = MaterialTheme.typography.titleMedium)
-                            Text("${template.paperWidth} mm · ${template.content.lines().size} líneas")
+                AppTab.IMAGES -> {
+                    item { SectionHeading("Biblioteca de imágenes", "Prepará recursos para personalizar tus tickets") }
+                    item {
+                        CardBlock {
+                            Box(Modifier.fillMaxWidth().height(110.dp).clip(RoundedCornerShape(16.dp)).background(RosePale), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Image, null, tint = RoseDark, modifier = Modifier.size(46.dp))
+                            }
+                            Text(if (selectedImage == null) "Todavía no elegiste una imagen" else "Imagen seleccionada", fontWeight = FontWeight.SemiBold, color = Ink)
+                            Text(selectedImage?.lastPathSegment ?: "Elegí una imagen desde tu dispositivo.", fontSize = 12.sp, color = Muted)
+                            Button(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
+                                Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Elegir imagen")
+                            }
+                            Text("La selección de archivos funciona; incorporarlos al ticket impreso queda para una próxima mejora.", fontSize = 11.sp, color = Muted)
                         }
-                        IconButton(onClick = { selectedId = template.id; editing = template; showEditor = true }) {
-                            Icon(Icons.Default.Edit, contentDescription = "Editar")
-                        }
-                        IconButton(onClick = {
-                            templates.removeAll { it.id == template.id }
-                            if (templates.isEmpty()) templates.add(TicketTemplate(name = "Ticket de ejemplo"))
-                            selectedId = templates.first().id
-                            persist()
-                        }) { Icon(Icons.Default.Delete, contentDescription = "Eliminar") }
                     }
                 }
-            }
-            item {
-                Text("Vista previa", style = MaterialTheme.typography.titleLarge)
-                Card(Modifier.fillMaxWidth()) {
-                    Text(selected?.content ?: "Creá una plantilla para empezar", Modifier.fillMaxWidth().padding(16.dp))
+                AppTab.PDF -> {
+                    item { SectionHeading("Documentos PDF", "Elegí un archivo para tenerlo a mano") }
+                    item {
+                        CardBlock {
+                            Box(Modifier.fillMaxWidth().height(110.dp).clip(RoundedCornerShape(16.dp)).background(RosePale), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.PictureAsPdf, null, tint = RoseDark, modifier = Modifier.size(46.dp))
+                            }
+                            Text(if (selectedPdf == null) "Ningún PDF seleccionado" else "PDF seleccionado", fontWeight = FontWeight.SemiBold, color = Ink)
+                            Text(selectedPdf?.lastPathSegment ?: "Seleccioná un documento PDF desde tu dispositivo.", fontSize = 12.sp, color = Muted)
+                            Button(onClick = { pdfPicker.launch(arrayOf("application/pdf")) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
+                                Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Elegir PDF")
+                            }
+                            Text("La conversión del PDF a contenido imprimible queda para una próxima mejora.", fontSize = 11.sp, color = Muted)
+                        }
+                    }
                 }
-                Button(
-                    onClick = {
-                        notice = selected?.let { UsbEscPosPrinter.print(context, it) }
-                            ?: "Primero creá o seleccioná una plantilla."
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Imprimir ticket por USB") }
-                Text("Las plantillas se guardan localmente en este dispositivo.")
+                AppTab.SETTINGS -> {
+                    item { SectionHeading("Configuración", "Ajustá el papel y el avance de impresión") }
+                    item {
+                        CardBlock {
+                            Text("Ancho del papel", fontWeight = FontWeight.SemiBold, color = Ink)
+                            Text("Seleccioná el tamaño que usás en tu impresora.", color = Muted, fontSize = 12.sp)
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                WidthChip("58 mm", selected?.paperWidth == 58) { selected?.let { t -> updateTemplate(templates, t.copy(paperWidth = 58), ::persist) } }
+                                WidthChip("80 mm", selected?.paperWidth != 58) { selected?.let { t -> updateTemplate(templates, t.copy(paperWidth = 80), ::persist) } }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("Avance al final", fontWeight = FontWeight.SemiBold, color = Ink)
+                                    Text("Líneas en blanco después del ticket", color = Muted, fontSize = 12.sp)
+                                }
+                                Text("${selected?.feedLines ?: 3}", color = RoseDark, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            }
+                            Slider(
+                                value = (selected?.feedLines ?: 3).toFloat(),
+                                onValueChange = { value -> selected?.let { t -> updateTemplate(templates, t.copy(feedLines = value.toInt()), ::persist) } },
+                                valueRange = 0f..8f,
+                                steps = 7
+                            )
+                        }
+                    }
+                    item {
+                        CardBlock {
+                            Text("Impresora", fontWeight = FontWeight.SemiBold, color = Ink)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(10.dp).clip(CircleShape).background(Rose))
+                                Spacer(Modifier.width(9.dp))
+                                Column {
+                                    Text("3nSTAR RPT001", fontWeight = FontWeight.Medium, color = Ink)
+                                    Text("USB · ESC/POS", fontSize = 12.sp, color = Muted)
+                                }
+                            }
+                            Text("Conectá la impresora con un adaptador OTG compatible y aceptá el permiso USB cuando Android lo solicite.", fontSize = 12.sp, color = Muted)
+                        }
+                    }
+                }
             }
         }
     }
 
     if (showEditor) {
-        TemplateEditor(
-            initial = editing,
-            onDismiss = { showEditor = false },
-            onSave = { name, content, width ->
-                val old = editing
-                if (old == null) {
-                    val created = TicketTemplate(name = name, content = content, paperWidth = width)
-                    templates.add(created)
-                    selectedId = created.id
-                } else {
-                    val index = templates.indexOfFirst { it.id == old.id }
-                    if (index >= 0) templates[index] = old.copy(name = name, content = content, paperWidth = width)
-                    selectedId = old.id
-                }
-                persist()
-                showEditor = false
+        TemplateEditor(initial = editing, onDismiss = { showEditor = false }) { name, content, width ->
+            val old = editing
+            if (old == null) {
+                val created = TicketTemplate(name = name, content = content, paperWidth = width)
+                templates.add(created); selectedId = created.id
+            } else {
+                val index = templates.indexOfFirst { it.id == old.id }
+                if (index >= 0) templates[index] = old.copy(name = name, content = content, paperWidth = width)
+                selectedId = old.id
             }
+            persist(); showEditor = false
+        }
+    }
+    deleteCandidate?.let { template ->
+        AlertDialog(
+            onDismissRequest = { deleteCandidate = null },
+            title = { Text("Eliminar plantilla") },
+            text = { Text("¿Querés eliminar «${template.name}»? Esta acción no se puede deshacer.") },
+            confirmButton = {
+                Button(onClick = {
+                    templates.removeAll { it.id == template.id }
+                    if (templates.isEmpty()) templates.add(TicketTemplate(name = "Ticket de ejemplo"))
+                    if (selectedId == template.id) selectedId = templates.first().id
+                    persist(); deleteCandidate = null
+                }) { Text("Eliminar") }
+            },
+            dismissButton = { OutlinedButton(onClick = { deleteCandidate = null }) { Text("Cancelar") } }
         )
     }
     notice?.let { message ->
-        AlertDialog(onDismissRequest = { notice = null }, title = { Text("Aviso") }, text = { Text(message) },
+        AlertDialog(onDismissRequest = { notice = null }, title = { Text("Impresión USB") }, text = { Text(message) },
             confirmButton = { Button(onClick = { notice = null }) { Text("Aceptar") } })
     }
 }
 
+private fun updateTemplate(templates: MutableList<TicketTemplate>, updated: TicketTemplate, persist: () -> Unit) {
+    val index = templates.indexOfFirst { it.id == updated.id }
+    if (index >= 0) { templates[index] = updated; persist() }
+}
+
 @Composable
-private fun TemplateEditor(
-    initial: TicketTemplate?,
-    onDismiss: () -> Unit,
-    onSave: (String, String, Int) -> Unit
-) {
+private fun WelcomeCard() {
+    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = RosePale)) {
+        Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text("TU NEGOCIO, A TU ESTILO", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = RoseDark, letterSpacing = 1.2.sp)
+                Text("Tickets lindos,\nlistos para imprimir.", fontSize = 23.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold, color = Ink)
+                Text("Creá diseños para Nash Pastelería & Café.", fontSize = 12.sp, color = Muted)
+            }
+            Box(Modifier.size(72.dp).clip(RoundedCornerShape(22.dp)).background(Color.White), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.ReceiptLong, null, tint = RoseDark, modifier = Modifier.size(38.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionHeading(title: String, subtitle: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
+        Text(subtitle, fontSize = 12.sp, color = Muted)
+    }
+}
+
+@Composable
+private fun CardBlock(content: @Composable ColumnScope.() -> Unit) {
+    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
+    }
+}
+
+@Composable
+private fun WidthChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    if (selected) {
+        Button(onClick = onClick, shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(horizontal = 15.dp, vertical = 9.dp)) { Text(label) }
+    } else {
+        OutlinedButton(onClick = onClick, shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(horizontal = 15.dp, vertical = 9.dp)) { Text(label) }
+    }
+}
+
+@Composable
+private fun TemplateEditor(initial: TicketTemplate?, onDismiss: () -> Unit, onSave: (String, String, Int) -> Unit) {
     var name by remember(initial?.id) { mutableStateOf(initial?.name ?: "") }
     var content by remember(initial?.id) { mutableStateOf(initial?.content ?: "") }
     var width by remember(initial?.id) { mutableIntStateOf(initial?.paperWidth ?: 80) }
@@ -206,15 +426,16 @@ private fun TemplateEditor(
         title = { Text(if (initial == null) "Nueva plantilla" else "Editar plantilla") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nombre") }, singleLine = true)
-                OutlinedTextField(value = content, onValueChange = { content = it }, label = { Text("Contenido del ticket") }, minLines = 5)
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nombre de la plantilla") }, singleLine = true)
+                OutlinedTextField(value = content, onValueChange = { content = it }, label = { Text("Contenido del ticket") }, minLines = 5, modifier = Modifier.fillMaxWidth())
+                Text("Ancho del papel", color = Muted, fontSize = 12.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { width = 58 }) { Text("58 mm") }
-                    OutlinedButton(onClick = { width = 80 }) { Text("80 mm") }
+                    WidthChip("58 mm", width == 58) { width = 58 }
+                    WidthChip("80 mm", width == 80) { width = 80 }
                 }
             }
         },
-        confirmButton = { Button(onClick = { onSave(name.trim().ifBlank { "Plantilla sin nombre" }, content, width) }) { Text("Guardar") } },
+        confirmButton = { Button(onClick = { onSave(name.trim().ifBlank { "Plantilla sin nombre" }, content, width) }) { Text("Guardar cambios") } },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Cancelar") } }
     )
 }
