@@ -94,7 +94,11 @@ object UsbEscPosPrinter {
         lines.forEach { line ->
             val cells = line.split('\t')
             if (cells.size <= 1) {
+                // Use double-width ESC/POS text for short lines so headings occupy more of the roll.
+                val scale = if (line.length in 1..15) 2 else 1
+                add(0x1D, 0x21, if (scale == 2) 0x01 else 0x00)
                 out.addAll(line.toByteArray(charset).toList())
+                add(0x1D, 0x21, 0x00)
                 add(0x0A)
             } else {
                 val colWidth = (maxChars / cells.size).coerceAtLeast(1)
