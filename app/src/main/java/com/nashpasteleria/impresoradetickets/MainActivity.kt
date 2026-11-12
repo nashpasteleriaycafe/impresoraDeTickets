@@ -348,20 +348,20 @@ private fun TicketApp(context: Context) {
                                     }
                                 }
                                 Text("${selectedPdfPages.size} de ${pdfPages.size} páginas seleccionadas. Se imprimirán una debajo de otra.", fontSize = 11.sp, color = Muted)
+                                if (selectedPdfPages.isNotEmpty()) {
+                                    Text("Vista previa del documento resultante", fontWeight = FontWeight.SemiBold, color = Ink)
+                                    val combinedPreview = remember(selectedPdfPages.toList(), pdfPages) {
+                                        combineBitmaps(selectedPdfPages.sorted().map { pdfPages[it] })
+                                    }
+                                    combinedPreview?.let { bitmap ->
+                                        androidx.compose.foundation.Image(bitmap = bitmap.asImageBitmap(), contentDescription = "Vista previa de las páginas conservadas en orden", modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
+                                    }
+                                }
                             }
                             Button(onClick = {
                                 notice = if (pdfPages.isEmpty()) "Primero elegí un PDF válido." else if (selectedPdfPages.isEmpty()) "Seleccioná al menos una página." else runCatching {
-                                    val chosen = selectedPdfPages.sorted().map { pdfPages[it] }
-                                    val width = chosen.maxOf { it.width }
-                                    val height = chosen.sumOf { it.height }
-                                    val combined = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                                    combined.eraseColor(android.graphics.Color.WHITE)
-                                    val canvas = AndroidCanvas(combined)
-                                    var y = 0f
-                                    chosen.forEach { page ->
-                                        canvas.drawBitmap(page, 0f, y, null)
-                                        y += page.height.toFloat()
-                                    }
+                                    val combined = combineBitmaps(selectedPdfPages.sorted().map { pdfPages[it] })
+                                        ?: error("No se pudo preparar el documento.")
                                     UsbEscPosPrinter.printBitmap(context, combined, paperWidth, selected?.feedLines ?: 3)
                                 }.getOrElse { "No se pudo imprimir el PDF: " + (it.message ?: "error desconocido") }
                             }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
@@ -478,6 +478,21 @@ private fun loadMonochromeImage(context: Context, uri: Uri, rotation: Int): Bitm
         result.setPixel(x, y, if (l < 160) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
     }
     return result
+}
+
+private fun combineBitmaps(pages: List<Bitmap>): Bitmap? {
+    if (pages.isEmpty()) return null
+    val width = pages.maxOf { it.width }
+    val height = pages.sumOf { it.height }
+    val combined = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    combined.eraseColor(android.graphics.Color.WHITE)
+    val canvas = AndroidCanvas(combined)
+    var y = 0f
+    pages.forEach { page ->
+        canvas.drawBitmap(page, 0f, y, null)
+        y += page.height.toFloat()
+    }
+    return combined
 }
 
 private fun renderPdfPages(context: Context, uri: Uri, paperWidth: Int): List<Bitmap> {
