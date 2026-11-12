@@ -233,9 +233,11 @@ private fun TicketApp(context: Context) {
         ) {
             when (activeTab) {
                 AppTab.DESIGN -> {
+                    item { SectionHeading("Diseñador de tickets", "Editá cada celda y guardá el diseño como plantilla") }
                     item {
                         CardBlock {
                             val template = selected ?: templates.first()
+                            Text("Tabla editable", fontWeight = FontWeight.SemiBold, color = Ink)
                             key(template.id) {
                                 TicketTableEditor(template = template, onContentChange = { content ->
                                     updateTemplate(templates, template.copy(content = content), ::persist)
@@ -279,7 +281,7 @@ private fun TicketApp(context: Context) {
                     item {
                         if (isLandscape) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                                CardBlock {
+                                CardBlock(modifier = Modifier.weight(1.15f)) {
                                     Text("Previsualización", fontWeight = FontWeight.SemiBold, color = Ink)
                                     Box(Modifier.fillMaxWidth().height(340.dp).clip(RoundedCornerShape(16.dp)).background(RosePale).verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
                                         when {
@@ -290,7 +292,7 @@ private fun TicketApp(context: Context) {
                                     }
                                     Text(selectedImage?.lastPathSegment ?: "Todavía no elegiste una imagen", fontSize = 12.sp, color = Muted, maxLines = 2)
                                 }
-                                CardBlock {
+                                CardBlock(modifier = Modifier.weight(0.85f)) {
                                     Text("Opciones", fontWeight = FontWeight.SemiBold, color = Ink)
                                     FilledTonalIconButton(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Add, contentDescription = "Elegir imagen") }
                                     Text("Elegir imagen", fontSize = 12.sp, color = Muted)
@@ -332,7 +334,7 @@ private fun TicketApp(context: Context) {
                     item {
                         if (isLandscape) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                                CardBlock {
+                                CardBlock(modifier = Modifier.weight(1.2f)) {
                                     Text("Previsualización de páginas", fontWeight = FontWeight.SemiBold, color = Ink)
                                     if (pdfLoading) {
                                         Box(Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally) { CircularProgressIndicator(); Spacer(Modifier.height(12.dp)); Text("Cargando PDF…", color = RoseDark) } }
@@ -351,7 +353,7 @@ private fun TicketApp(context: Context) {
                                         Text("Tocá cualquier parte de una página para seleccionarla o quitarla.", fontSize = 11.sp, color = Muted)
                                     }
                                 }
-                                CardBlock {
+                                CardBlock(modifier = Modifier.weight(0.8f)) {
                                     FilledTonalIconButton(onClick = { pdfPicker.launch(arrayOf("application/pdf")) }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Add, contentDescription = "Elegir PDF") }
                                     Text(if (selectedPdf == null) "Elegir PDF" else selectedPdf?.lastPathSegment ?: "PDF seleccionado", fontSize = 12.sp, color = Muted, maxLines = 2)
                                     if (pdfPages.isNotEmpty() && !pdfLoading) {
@@ -687,7 +689,7 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
                     }
                     val cellFocusRequester = remember(template.id, rowIndex, colIndex) { FocusRequester() }
                     Column(
-                        Modifier.widthIn(min = 110.dp).weight(1f, fill = true)
+                        Modifier.width(150.dp)
                             .border(if (selected) 2.dp else 1.dp, if (selected) RoseDark else Line, RoundedCornerShape(8.dp))
                             .background(if (selected) RosePale else Color.White, RoundedCornerShape(8.dp))
                             
@@ -792,8 +794,8 @@ private fun SectionHeading(title: String, subtitle: String) {
 }
 
 @Composable
-private fun CardBlock(content: @Composable ColumnScope.() -> Unit) {
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
+private fun CardBlock(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Card(modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
     }
 }
