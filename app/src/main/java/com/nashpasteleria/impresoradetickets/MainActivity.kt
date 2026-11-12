@@ -138,7 +138,7 @@ private fun TicketApp(context: Context) {
     LaunchedEffect(selectedPdf, paperWidth) {
         pdfPages = selectedPdf?.let { uri -> runCatching { renderPdfPages(context, uri, paperWidth) }.getOrDefault(emptyList()) } ?: emptyList()
         selectedPdfPages.clear()
-        selectedPdfPages.addAll(pdfPages.indices)
+        selectedPdfPages.addAll(pdfPages.indices.toList())
     }
 
     fun persist() {
