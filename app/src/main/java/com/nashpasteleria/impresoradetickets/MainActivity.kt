@@ -20,6 +20,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalConfiguration
+import android.content.res.Configuration
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -138,21 +140,40 @@ private fun TicketApp(context: Context) {
     var selectedImage by remember { mutableStateOf<Uri?>(null) }
     var selectedPdf by remember { mutableStateOf<Uri?>(null) }
     var imageRotation by remember { mutableIntStateOf(0) }
+    var imageLoading by remember { mutableStateOf(false) }
+    var pdfLoading by remember { mutableStateOf(false) }
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     var imagePreview by remember { mutableStateOf<Bitmap?>(null) }
     var pdfPages by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
     val selectedPdfPages = remember { mutableStateListOf<Int>() }
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { selectedImage = it; imageRotation = 0 }
-    val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { selectedPdf = it }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) { selectedImage = uri; imageRotation = 0 } }
+    val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) selectedPdf = uri }
     val selected = templates.firstOrNull { it.id == selectedId } ?: templates.firstOrNull()
 
     LaunchedEffect(selectedImage, imageRotation) {
-        imagePreview = selectedImage?.let { uri -> runCatching { withContext(Dispatchers.IO) { loadMonochromeImage(context, uri, imageRotation) } }.getOrNull() }
+        val uri = selectedImage
+        if (uri == null) { imagePreview = null; imageLoading = false } else {
+            imageLoading = true
+            imagePreview = null
+            try { imagePreview = withContext(Dispatchers.IO) { loadMonochromeImage(context, uri, imageRotation) } }
+            catch (_: Exception) { notice = "No se pudo cargar la imagen. Probá con otro archivo."; imagePreview = null }
+            finally { imageLoading = false }
+        }
     }
     LaunchedEffect(selectedPdf, paperWidth) {
-        pdfPages = selectedPdf?.let { uri -> runCatching { withContext(Dispatchers.IO) { renderPdfPages(context, uri, paperWidth) } }.getOrDefault(emptyList()) } ?: emptyList()
-        selectedPdfPages.clear()
-        selectedPdfPages.addAll(pdfPages.indices.toList())
-        pdfSelectionText = formatPageRanges(selectedPdfPages.toList())
+        val uri = selectedPdf
+        if (uri == null) { pdfPages = emptyList(); pdfLoading = false } else {
+            pdfLoading = true
+            pdfPages = emptyList()
+            try { pdfPages = withContext(Dispatchers.IO) { renderPdfPages(context, uri, paperWidth) } }
+            catch (_: Exception) { notice = "No se pudo cargar el PDF. Probá con otro archivo."; pdfPages = emptyList() }
+            finally {
+                selectedPdfPages.clear()
+                selectedPdfPages.addAll(pdfPages.indices.toList())
+                pdfSelectionText = formatPageRanges(selectedPdfPages.toList())
+                pdfLoading = false
+            }
+        }
     }
 
     fun persist() {
