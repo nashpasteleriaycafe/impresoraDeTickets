@@ -90,7 +90,7 @@ object UsbEscPosPrinter {
         add(0x1B, 0x21, 0x00)
         val charset = Charset.forName("windows-1252")
         val lines = template.content.replace("\r\n", "\n").replace('\r', '\n').split('\n')
-        val maxChars = if (template.paperWidth == 58) 32 else 48
+        val maxChars = if (template.paperWidth <= 58) 32 else 48
         lines.forEach { line ->
             val cells = line.split('\t')
             if (cells.size <= 1) {
@@ -126,7 +126,7 @@ object UsbEscPosPrinter {
         val connection = manager.openDevice(device) ?: return "No se pudo abrir la impresora USB."
         if (!connection.claimInterface(intf, true)) { connection.close(); return "No se pudo reservar la interfaz USB." }
         try {
-            val maxWidth = if (paperWidth == 58) 384 else 576
+            val maxWidth = if (paperWidth <= 58) 384 else 576
             val scaledHeight = (bitmap.height * maxWidth.toFloat() / bitmap.width).toInt().coerceAtLeast(1)
             val scaled = Bitmap.createScaledBitmap(bitmap, maxWidth, scaledHeight, true)
             val bytesPerRow = (scaled.width + 7) / 8
