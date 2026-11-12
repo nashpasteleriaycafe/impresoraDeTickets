@@ -112,6 +112,7 @@ private fun TicketApp(context: Context) {
     var notice by remember { mutableStateOf<String?>(null) }
     var activeTab by remember { mutableStateOf(AppTab.DESIGN) }
     var paperWidth by remember { mutableIntStateOf(prefs.getInt("paper_width", 58).coerceIn(40, 120)) }
+    var paperWidthText by remember { mutableStateOf(paperWidth.toString()) }
     var selectedImage by remember { mutableStateOf<Uri?>(null) }
     var selectedPdf by remember { mutableStateOf<Uri?>(null) }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { selectedImage = it }
@@ -315,14 +316,18 @@ private fun TicketApp(context: Context) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(onClick = {
                                     paperWidth = (paperWidth - 1).coerceAtLeast(40)
+                                    paperWidthText = paperWidth.toString()
                                     prefs.edit().putInt("paper_width", paperWidth).apply()
                                 }, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)) { Text("−", fontSize = 20.sp) }
                                 OutlinedTextField(
-                                    value = paperWidth.toString(),
-                                    onValueChange = { raw -> raw.toIntOrNull()?.let { value ->
-                                        paperWidth = value.coerceIn(40, 120)
-                                        prefs.edit().putInt("paper_width", paperWidth).apply()
-                                    } },
+                                    value = paperWidthText,
+                                    onValueChange = { raw ->
+                                        paperWidthText = raw.filter(Char::isDigit).take(3)
+                                        paperWidthText.toIntOrNull()?.takeIf { it in 40..120 }?.let { value ->
+                                            paperWidth = value
+                                            prefs.edit().putInt("paper_width", paperWidth).apply()
+                                        }
+                                    },
                                     label = { Text("Milímetros") },
                                     suffix = { Text("mm") },
                                     singleLine = true,
@@ -330,6 +335,7 @@ private fun TicketApp(context: Context) {
                                 )
                                 OutlinedButton(onClick = {
                                     paperWidth = (paperWidth + 1).coerceAtMost(120)
+                                    paperWidthText = paperWidth.toString()
                                     prefs.edit().putInt("paper_width", paperWidth).apply()
                                 }, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)) { Text("+", fontSize = 20.sp) }
                             }
@@ -623,7 +629,7 @@ private fun WidthChip(label: String, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun TemplateEditor(initial: TicketTemplate?, onDismiss: () -> Unit, onSave: (String, String, Int) -> Unit) {
     var name by remember(initial?.id) { mutableStateOf(initial?.name ?: "") }
-    var width by remember(initial?.id) { mutableIntStateOf(initial?.paperWidth ?: 80) }
+    var width by remember(initial?.id) { mutableIntStateOf(initial?.paperWidth ?: 58) }
     fun parse(value: String): List<List<String>> = value.split("\n").map { it.split("\t") }.ifEmpty { listOf(listOf("")) }
     val cells = remember(initial?.id) { mutableStateListOf<MutableList<String>>().apply {
         parse(initial?.content ?: "NASH Pastelería & Café\nGracias por tu compra!").forEach { add(it.toMutableList()) }
