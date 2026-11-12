@@ -98,7 +98,11 @@ private fun TicketApp(context: Context) {
                     add(TicketTemplate(
                         id = o.optString("id", UUID.randomUUID().toString()),
                         name = o.optString("name", "Plantilla"),
-                        content = o.optString("content", ""),
+                        content = o.optString("content", "").let { saved ->
+                            if (saved.isBlank() || (o.optString("name") == "Ticket de ejemplo" && saved.contains("NASH Pastelería"))) {
+                                "Nombre del producto\n.\n" + SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
+                            } else saved
+                        },
                         paperWidth = o.optInt("paperWidth", 58),
                         feedLines = o.optInt("feedLines", 3),
                         cutAfterPrint = o.optBoolean("cutAfterPrint", true)
