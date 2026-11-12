@@ -226,24 +226,6 @@ private fun TicketApp(context: Context) {
                             }
                         }
                     }
-                    item {
-                        CardBlock {
-                            Text("Vista previa del papel (" + paperWidth + " mm)", fontWeight = FontWeight.SemiBold, color = Ink)
-                            TicketContentPreview(selected?.content ?: "")
-                        }
-                    }
-                    item {
-                        Button(
-                            onClick = { notice = selected?.let { UsbEscPosPrinter.print(context, it.copy(paperWidth = paperWidth)) } ?: "Primero creá o seleccioná una plantilla." },
-                            modifier = Modifier.fillMaxWidth().height(54.dp),
-                            shape = RoundedCornerShape(17.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = RoseDark)
-                        ) {
-                            Icon(Icons.Default.Print, null); Spacer(Modifier.width(9.dp))
-                            Text("Imprimir ticket", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        }
-                    }
-                    item { Text("Conexión USB · 3nSTAR RPT001", color = Muted, fontSize = 12.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
                 }
                 AppTab.TEMPLATES -> {
                     item { SectionHeading("Tus plantillas", "Guardá distintos diseños para cada necesidad") }
@@ -257,9 +239,6 @@ private fun TicketApp(context: Context) {
                                 Column(Modifier.weight(1f)) {
                                     Text(template.name, fontWeight = FontWeight.SemiBold, color = Ink)
                                     Text("${paperWidth} mm · ${template.content.lines().size} filas", color = Muted, fontSize = 12.sp)
-                                }
-                                IconButton(onClick = { selectedId = template.id; activeTab = AppTab.DESIGN }) {
-                                    Icon(Icons.Default.Edit, "Diseñar plantilla", tint = RoseDark)
                                 }
                                 IconButton(onClick = { deleteCandidate = template }) {
                                     Icon(Icons.Default.Delete, "Eliminar plantilla", tint = Muted)
