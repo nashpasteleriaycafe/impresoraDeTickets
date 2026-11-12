@@ -109,8 +109,6 @@ private fun TicketApp(context: Context) {
         }
     }
     var selectedId by remember { mutableStateOf(templates.first().id) }
-    var editing by remember { mutableStateOf<TicketTemplate?>(null) }
-    var showEditor by remember { mutableStateOf(false) }
     var deleteCandidate by remember { mutableStateOf<TicketTemplate?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
     var activeTab by remember { mutableStateOf(AppTab.DESIGN) }
@@ -231,7 +229,10 @@ private fun TicketApp(context: Context) {
                 AppTab.TEMPLATES -> {
                     item { SectionHeading("Tus plantillas", "Guardá distintos diseños para cada necesidad") }
                     item {
-                        Button(onClick = { editing = null; showEditor = true }, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(15.dp)) {
+                        Button(onClick = {
+                            val created = TicketTemplate(name = "Plantilla ${templates.size + 1}", paperWidth = paperWidth)
+                            templates.add(created); selectedId = created.id; persist(); activeTab = AppTab.DESIGN
+                        }, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(15.dp)) {
                             Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Crear nueva plantilla")
                         }
                     }
@@ -244,10 +245,10 @@ private fun TicketApp(context: Context) {
                                 Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(template.name, fontWeight = FontWeight.SemiBold, color = Ink)
-                                    Text("${template.paperWidth} mm · ${template.content.lines().size} líneas", color = Muted, fontSize = 12.sp)
+                                    Text("${paperWidth} mm · ${template.content.lines().size} filas", color = Muted, fontSize = 12.sp)
                                 }
-                                IconButton(onClick = { selectedId = template.id; editing = template; showEditor = true }) {
-                                    Icon(Icons.Default.Edit, "Editar plantilla", tint = RoseDark)
+                                IconButton(onClick = { selectedId = template.id; activeTab = AppTab.DESIGN }) {
+                                    Icon(Icons.Default.Edit, "Diseñar plantilla", tint = RoseDark)
                                 }
                                 IconButton(onClick = { deleteCandidate = template }) {
                                     Icon(Icons.Default.Delete, "Eliminar plantilla", tint = Muted)
@@ -430,20 +431,6 @@ private fun TicketApp(context: Context) {
         }
     }
 
-    if (showEditor) {
-        TemplateEditor(initial = editing, onDismiss = { showEditor = false }) { name, content, width ->
-            val old = editing
-            if (old == null) {
-                val created = TicketTemplate(name = name, content = content, paperWidth = width)
-                templates.add(created); selectedId = created.id
-            } else {
-                val index = templates.indexOfFirst { it.id == old.id }
-                if (index >= 0) templates[index] = old.copy(name = name, content = content, paperWidth = width)
-                selectedId = old.id
-            }
-            persist(); showEditor = false
-        }
-    }
     deleteCandidate?.let { template ->
         AlertDialog(
             onDismissRequest = { deleteCandidate = null },
@@ -671,7 +658,7 @@ private fun TicketContentPreview(content: String) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(0.dp)) {
                 cells.forEach { cell ->
                     Box(Modifier.weight(1f).border(0.5.dp, Color(0xFFE9D6DC)).padding(horizontal = 4.dp, vertical = 5.dp)) {
-                        Text(cell, fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 15.sp, color = Ink)
+                        Text(cell, fontFamily = FontFamily.Monospace, fontSize = (24 - cell.length / 4).coerceIn(10, 24).sp, lineHeight = (28 - cell.length / 4).coerceIn(12, 28).sp, color = Ink, maxLines = 3)
                     }
                 }
             }
@@ -719,63 +706,3 @@ private fun WidthChip(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-@Composable
-private fun TemplateEditor(initial: TicketTemplate?, onDismiss: () -> Unit, onSave: (String, String, Int) -> Unit) {
-    var name by remember(initial?.id) { mutableStateOf(initial?.name ?: "") }
-    var width by remember(initial?.id) { mutableIntStateOf(initial?.paperWidth ?: 58) }
-    fun parse(value: String): List<List<String>> = value.split("\n").map { it.split("\t") }.ifEmpty { listOf(listOf("")) }
-    val cells = remember(initial?.id) { mutableStateListOf<MutableList<String>>().apply {
-        parse(initial?.content ?: "NASH Pastelería & Café\nGracias por tu compra!").forEach { add(it.toMutableList()) }
-    } }
-    var activeRow by remember(initial?.id) { mutableIntStateOf(0) }
-    var activeCol by remember(initial?.id) { mutableIntStateOf(0) }
-    var merged by remember(initial?.id) { mutableStateOf(false) }
-    var columnWidth by remember(initial?.id) { mutableIntStateOf(12) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "Nueva plantilla" else "Diseñar plantilla") },
-        text = {
-            Column(Modifier.fillMaxWidth().heightIn(max = 560.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nombre") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Text("Tabla del ticket", fontWeight = FontWeight.Bold, color = RoseDark)
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    OutlinedButton(onClick = { cells.add(MutableList(cells.maxOfOrNull { it.size } ?: 1) { "" }); activeRow = cells.lastIndex }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("+ Fila") }
-                    OutlinedButton(onClick = { cells.forEach { it.add("") }; activeCol = (cells.maxOfOrNull { it.size } ?: 1) - 1 }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("+ Columna") }
-                    OutlinedButton(onClick = { if (cells.size > 1) { cells.removeAt(cells.lastIndex); activeRow = activeRow.coerceAtMost(cells.lastIndex) } }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("− Fila") }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    OutlinedButton(onClick = { if ((cells.maxOfOrNull { it.size } ?: 1) > 1) cells.forEach { if (it.size > 1) it.removeAt(it.lastIndex) }; activeCol = activeCol.coerceAtMost((cells.maxOfOrNull { it.size } ?: 1) - 1) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("− Columna") }
-                    OutlinedButton(onClick = { val row = cells.getOrNull(activeRow); if (row != null && activeCol < row.lastIndex) { row[activeCol] = listOf(row[activeCol], row[activeCol+1]).filter { it.isNotBlank() }.joinToString(" "); row.removeAt(activeCol+1); merged = true } }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("Combinar →") }
-                    OutlinedButton(onClick = { val row = cells.getOrNull(activeRow); if (row != null && merged) { row.add((activeCol+1).coerceAtMost(row.size), ""); merged = false } }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("Dividir") }
-                }
-                Text("Tocá una celda para seleccionarla", fontSize = 12.sp, color = Muted)
-                Column(Modifier.fillMaxWidth().heightIn(max = 150.dp).background(Color(0xFFFFFCFC), RoundedCornerShape(10.dp)).padding(4.dp)) {
-                    cells.forEachIndexed { ri, row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                            row.forEachIndexed { ci, cell ->
-                                OutlinedButton(onClick = { activeRow = ri; activeCol = ci }, modifier = Modifier.weight(1f).heightIn(min = 34.dp), contentPadding = PaddingValues(2.dp), colors = ButtonDefaults.outlinedButtonColors(containerColor = if (activeRow == ri && activeCol == ci) RosePale else Color.White)) {
-                                    Text(cell.ifBlank { "·" }, maxLines = 2, fontSize = 10.sp)
-                                }
-                            }
-                        }
-                    }
-                }
-                val current = cells.getOrNull(activeRow)?.getOrNull(activeCol) ?: ""
-                OutlinedTextField(value = current, onValueChange = { v -> cells.getOrNull(activeRow)?.let { row -> if (activeCol in row.indices) row[activeCol] = v } }, label = { Text("Editar celda") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
-                Text("Ancho de columna: " + columnWidth + " caracteres", fontSize = 12.sp, color = Muted)
-                Slider(value = columnWidth.toFloat(), onValueChange = { columnWidth = it.toInt() }, valueRange = 4f..32f, steps = 27)
-                Text("Ancho del papel", fontSize = 12.sp, color = Muted)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    WidthChip("58 mm", width == 58) { width = 58 }
-                    WidthChip("80 mm", width == 80) { width = 80 }
-                }
-            }
-        },
-        confirmButton = { Button(onClick = {
-            val count = cells.maxOfOrNull { it.size } ?: 1
-            val output = cells.map { row -> (0 until count).joinToString("\t") { row.getOrElse(it) { "" } } }.joinToString("\n")
-            onSave(name.trim().ifBlank { "Plantilla sin nombre" }, output, width)
-        }) { Text("Guardar cambios") } },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Cancelar") } }
-    )
-}
