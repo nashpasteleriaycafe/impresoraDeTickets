@@ -235,7 +235,8 @@ private fun TicketApp(context: Context) {
                 AppTab.DESIGN -> {
                     item {
                         CardBlock {
-                            selected?.let { template ->
+                            val template = selected ?: templates.first()
+                            key(template.id) {
                                 TicketTableEditor(template = template, onContentChange = { content ->
                                     updateTemplate(templates, template.copy(content = content), ::persist)
                                 })
@@ -279,7 +280,8 @@ private fun TicketApp(context: Context) {
                         CardBlock {
                             Box(Modifier.fillMaxWidth().heightIn(min = 110.dp, max = 320.dp).clip(RoundedCornerShape(16.dp)).background(RosePale).verticalScroll(rememberScrollState()), contentAlignment = Alignment.Center) {
                                 val preview = imagePreview
-                                if (preview == null) Icon(Icons.Default.Image, null, tint = RoseDark, modifier = Modifier.size(46.dp))
+                                if (imageLoading) Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(18.dp)) { CircularProgressIndicator(); Text("Cargando imagen…", color = RoseDark, fontSize = 13.sp) }
+                                else if (preview == null) Icon(Icons.Default.Image, null, tint = RoseDark, modifier = Modifier.size(46.dp))
                                 else androidx.compose.foundation.Image(bitmap = preview.asImageBitmap(), contentDescription = "Vista previa en blanco y negro", modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp, max = 1100.dp).padding(8.dp), contentScale = androidx.compose.ui.layout.ContentScale.FillWidth)
                             }
                             Text(if (selectedImage == null) "Todavía no elegiste una imagen" else "Imagen seleccionada", fontWeight = FontWeight.SemiBold, color = Ink)
@@ -315,8 +317,10 @@ private fun TicketApp(context: Context) {
                     item {
                         CardBlock {
                             Box(Modifier.fillMaxWidth().height(70.dp).clip(RoundedCornerShape(16.dp)).background(RosePale), contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.PictureAsPdf, null, tint = RoseDark, modifier = Modifier.size(36.dp))
+                                if (pdfLoading) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) { CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp); Text("Cargando PDF…", color = RoseDark, fontSize = 13.sp) }
+                                else Icon(Icons.Default.PictureAsPdf, null, tint = RoseDark, modifier = Modifier.size(36.dp))
                             }
+                            if (pdfLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
                             Text(if (selectedPdf == null) "Ningún PDF seleccionado" else "PDF seleccionado", fontWeight = FontWeight.SemiBold, color = Ink)
                             Text(selectedPdf?.lastPathSegment ?: "Seleccioná un documento PDF desde tu dispositivo.", fontSize = 12.sp, color = Muted)
                             Button(onClick = { pdfPicker.launch(arrayOf("application/pdf")) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
