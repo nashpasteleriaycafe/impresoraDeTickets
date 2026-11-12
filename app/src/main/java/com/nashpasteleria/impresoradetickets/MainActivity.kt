@@ -277,38 +277,53 @@ private fun TicketApp(context: Context) {
                 AppTab.IMAGES -> {
                     item { SectionHeading("Biblioteca de imágenes", "Prepará recursos para personalizar tus tickets") }
                     item {
-                        CardBlock {
-                            Box(Modifier.fillMaxWidth().heightIn(min = 110.dp, max = 320.dp).clip(RoundedCornerShape(16.dp)).background(RosePale).verticalScroll(rememberScrollState()), contentAlignment = Alignment.Center) {
-                                val preview = imagePreview
-                                if (imageLoading) Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(18.dp)) { CircularProgressIndicator(); Text("Cargando imagen…", color = RoseDark, fontSize = 13.sp) }
-                                else if (preview == null) Icon(Icons.Default.Image, null, tint = RoseDark, modifier = Modifier.size(46.dp))
-                                else androidx.compose.foundation.Image(bitmap = preview.asImageBitmap(), contentDescription = "Vista previa en blanco y negro", modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp, max = 1100.dp).padding(8.dp), contentScale = androidx.compose.ui.layout.ContentScale.FillWidth)
-                            }
-                            Text(if (selectedImage == null) "Todavía no elegiste una imagen" else "Imagen seleccionada", fontWeight = FontWeight.SemiBold, color = Ink)
-                            Text(selectedImage?.lastPathSegment ?: "Elegí una imagen desde tu dispositivo.", fontSize = 12.sp, color = Muted)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = { imageRotation = (imageRotation + 270) % 360 }, enabled = selectedImage != null) {
-                                    Icon(Icons.Default.RotateLeft, contentDescription = "Girar 90 grados en sentido antihorario")
+                        if (isLandscape) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+                                CardBlock {
+                                    Text("Previsualización", fontWeight = FontWeight.SemiBold, color = Ink)
+                                    Box(Modifier.fillMaxWidth().height(340.dp).clip(RoundedCornerShape(16.dp)).background(RosePale).verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
+                                        when {
+                                            imageLoading -> Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(20.dp)) { CircularProgressIndicator(); Spacer(Modifier.height(8.dp)); Text("Cargando imagen…", color = RoseDark) }
+                                            imagePreview != null -> androidx.compose.foundation.Image(bitmap = imagePreview!!.asImageBitmap(), contentDescription = "Vista previa de imagen", modifier = Modifier.fillMaxWidth().padding(8.dp), contentScale = androidx.compose.ui.layout.ContentScale.FillWidth)
+                                            else -> Icon(Icons.Default.Image, contentDescription = "Sin imagen", tint = RoseDark, modifier = Modifier.padding(28.dp).size(48.dp))
+                                        }
+                                    }
+                                    Text(selectedImage?.lastPathSegment ?: "Todavía no elegiste una imagen", fontSize = 12.sp, color = Muted, maxLines = 2)
                                 }
-                                IconButton(onClick = { imageRotation = (imageRotation + 90) % 360 }, enabled = selectedImage != null) {
-                                    Icon(Icons.Default.RotateRight, contentDescription = "Girar 90 grados en sentido horario")
+                                CardBlock {
+                                    Text("Opciones", fontWeight = FontWeight.SemiBold, color = Ink)
+                                    FilledTonalIconButton(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Add, contentDescription = "Elegir imagen") }
+                                    Text("Elegir imagen", fontSize = 12.sp, color = Muted)
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        IconButton(onClick = { imageRotation = (imageRotation + 270) % 360 }, enabled = selectedImage != null) { Icon(Icons.Default.RotateLeft, contentDescription = "Girar a la izquierda") }
+                                        IconButton(onClick = { imageRotation = (imageRotation + 90) % 360 }, enabled = selectedImage != null) { Icon(Icons.Default.RotateRight, contentDescription = "Girar a la derecha") }
+                                        Text("${imageRotation}°", color = Muted)
+                                    }
+                                    Button(onClick = {
+                                        val uri = selectedImage
+                                        notice = if (uri == null) "Primero elegí una imagen." else runCatching {
+                                            val bitmap = imagePreview ?: loadMonochromeImage(context, uri, imageRotation)
+                                            UsbEscPosPrinter.printBitmap(context, bitmap, paperWidth, selected?.feedLines ?: 3)
+                                        }.getOrElse { "No se pudo preparar la imagen: " + (it.message ?: "error desconocido") }
+                                    }, enabled = selectedImage != null && !imageLoading && imagePreview != null, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Print, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Imprimir") }
+                                    Text("La imagen se prepara en blanco y negro antes de imprimir.", fontSize = 11.sp, color = Muted)
                                 }
-                                Spacer(Modifier.weight(1f))
-                                Text("${imageRotation}°", color = Muted, fontSize = 12.sp)
                             }
-                            Button(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
-                                Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Elegir imagen")
+                        } else {
+                            CardBlock {
+                                Box(Modifier.fillMaxWidth().heightIn(min = 110.dp, max = 320.dp).clip(RoundedCornerShape(16.dp)).background(RosePale).verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
+                                    when {
+                                        imageLoading -> Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(20.dp)) { CircularProgressIndicator(); Text("Cargando imagen…", color = RoseDark) }
+                                        imagePreview != null -> androidx.compose.foundation.Image(bitmap = imagePreview!!.asImageBitmap(), contentDescription = "Vista previa de imagen", modifier = Modifier.fillMaxWidth().padding(8.dp), contentScale = androidx.compose.ui.layout.ContentScale.FillWidth)
+                                        else -> Icon(Icons.Default.Image, contentDescription = "Sin imagen", tint = RoseDark, modifier = Modifier.padding(28.dp).size(48.dp))
+                                    }
+                                }
+                                Text(selectedImage?.lastPathSegment ?: "Todavía no elegiste una imagen", fontSize = 12.sp, color = Muted)
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    FilledTonalIconButton(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Add, contentDescription = "Elegir imagen") }
+                                    Button(onClick = { val uri = selectedImage; notice = if (uri == null) "Primero elegí una imagen." else runCatching { UsbEscPosPrinter.printBitmap(context, imagePreview ?: loadMonochromeImage(context, uri, imageRotation), paperWidth, selected?.feedLines ?: 3) }.getOrElse { "No se pudo preparar la imagen: " + (it.message ?: "error desconocido") } }, enabled = selectedImage != null && !imageLoading && imagePreview != null, modifier = Modifier.weight(3f)) { Icon(Icons.Default.Print, null); Spacer(Modifier.width(8.dp)); Text("Imprimir") }
+                                }
                             }
-                            Button(onClick = {
-                                val uri = selectedImage
-                                notice = if (uri == null) "Primero elegí una imagen." else runCatching {
-                                    val bitmap = imagePreview ?: loadMonochromeImage(context, uri, imageRotation)
-                                    UsbEscPosPrinter.printBitmap(context, bitmap, paperWidth, selected?.feedLines ?: 3)
-                                }.getOrElse { "No se pudo preparar la imagen: " + (it.message ?: "error desconocido") }
-                            }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
-                                Icon(Icons.Default.Print, null); Spacer(Modifier.width(8.dp)); Text("Imprimir imagen por USB")
-                            }
-                            Text("La imagen se convierte a blanco y negro y se envía como gráfico ESC/POS.", fontSize = 11.sp, color = Muted)
                         }
                     }
                 }
