@@ -634,7 +634,7 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
                             modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp),
                             textStyle = androidx.compose.ui.text.TextStyle(
                                 color = Ink,
-                                fontSize = (32 - text.length / 2).coerceIn(12, 32).sp,
+                                fontSize = (56f - text.length * 1.4f).coerceIn(12f, 52f).sp,
                                 fontWeight = if (rowIndex == 0) FontWeight.SemiBold else FontWeight.Normal,
                                 textAlign = TextAlign.Center
                             ),
@@ -689,7 +689,7 @@ private fun TicketContentPreview(content: String) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(0.dp)) {
                 cells.forEach { cell ->
                     Box(Modifier.weight(1f).border(0.5.dp, Color(0xFFE9D6DC)).padding(horizontal = 4.dp, vertical = 5.dp)) {
-                        Text(cell, fontFamily = FontFamily.Monospace, fontSize = (32 - cell.length / 2).coerceIn(12, 32).sp, lineHeight = (36 - cell.length / 2).coerceIn(14, 36).sp, color = Ink, maxLines = 3)
+                        Text(cell, fontFamily = FontFamily.Monospace, fontSize = (56f - cell.length * 1.4f).coerceIn(12f, 52f).sp, lineHeight = (62f - cell.length * 1.4f).coerceIn(14f, 58f).sp, color = Ink, maxLines = 3)
                     }
                 }
             }
