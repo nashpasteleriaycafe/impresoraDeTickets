@@ -312,10 +312,28 @@ private fun TicketApp(context: Context) {
                         CardBlock {
                             Text("Ancho del papel", fontWeight = FontWeight.SemiBold, color = Ink)
                             Text("Seleccioná el tamaño que usás en tu impresora.", color = Muted, fontSize = 12.sp)
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                WidthChip("58 mm", selected?.paperWidth == 58) { selected?.let { t -> updateTemplate(templates, t.copy(paperWidth = 58), ::persist) } }
-                                WidthChip("80 mm", selected?.paperWidth != 58) { selected?.let { t -> updateTemplate(templates, t.copy(paperWidth = 80), ::persist) } }
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = {
+                                    paperWidth = (paperWidth - 1).coerceAtLeast(40)
+                                    prefs.edit().putInt("paper_width", paperWidth).apply()
+                                }, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)) { Text("−", fontSize = 20.sp) }
+                                OutlinedTextField(
+                                    value = paperWidth.toString(),
+                                    onValueChange = { raw -> raw.toIntOrNull()?.let { value ->
+                                        paperWidth = value.coerceIn(40, 120)
+                                        prefs.edit().putInt("paper_width", paperWidth).apply()
+                                    } },
+                                    label = { Text("Milímetros") },
+                                    suffix = { Text("mm") },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                OutlinedButton(onClick = {
+                                    paperWidth = (paperWidth + 1).coerceAtMost(120)
+                                    prefs.edit().putInt("paper_width", paperWidth).apply()
+                                }, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)) { Text("+", fontSize = 20.sp) }
                             }
+                            Text("Ancho editable de 40 a 120 mm. Valor predeterminado: 58 mm.", fontSize = 11.sp, color = Muted)
                             Spacer(Modifier.height(8.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
@@ -390,6 +408,160 @@ private fun TicketApp(context: Context) {
 private fun updateTemplate(templates: MutableList<TicketTemplate>, updated: TicketTemplate, persist: () -> Unit) {
     val index = templates.indexOfFirst { it.id == updated.id }
     if (index >= 0) { templates[index] = updated; persist() }
+}
+
+@Composable
+private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String) -> Unit) {
+    fun parse(value: String): List<List<String>> =
+        value.split("\n").map { it.split("\t") }.ifEmpty { listOf(listOf("")) }
+    var grid by remember(template.id) { mutableStateOf(parse(template.content)) }
+    val selectedCells = remember(template.id) { mutableStateListOf<Pair<Int, Int>>() }
+    var showSplitDialog by remember { mutableStateOf(false) }
+    var splitRows by remember { mutableStateOf("2") }
+    var splitColumns by remember { mutableStateOf("2") }
+
+    fun publish(next: List<List<String>>) {
+        val count = next.maxOfOrNull { it.size } ?: 1
+        val normalized = next.map { row -> (0 until count).map { row.getOrElse(it) { "" } } }
+        grid = normalized
+        onContentChange(normalized.joinToString("\n") { it.joinToString("\t") })
+    }
+    fun toggleCell(row: Int, col: Int) {
+        val key = row to col
+        if (selectedCells.isEmpty()) selectedCells.add(key)
+        else if (key in selectedCells) selectedCells.remove(key) else selectedCells.add(key)
+    }
+    val columnCount = grid.maxOfOrNull { it.size } ?: 1
+    val selectedRows = (0 until grid.size).filter { row -> (0 until columnCount).all { (row to it) in selectedCells } }
+    val selectedColumns = (0 until columnCount).filter { col -> (0 until grid.size).all { (it to col) in selectedCells } }
+    val horizontalPair = selectedCells.size == 2 && selectedCells[0].first == selectedCells[1].first &&
+        kotlin.math.abs(selectedCells[0].second - selectedCells[1].second) == 1
+    val verticalPair = selectedCells.size == 2 && selectedCells[0].second == selectedCells[1].second &&
+        kotlin.math.abs(selectedCells[0].first - selectedCells[1].first) == 1
+
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        OutlinedButton(onClick = {
+            val insertAt = (selectedRows.maxOrNull() ?: (grid.size - 1)) + 1
+            val next = grid.toMutableList()
+            next.add(insertAt.coerceIn(0, next.size), List(columnCount) { "" })
+            publish(next); selectedCells.clear()
+        }, enabled = selectedRows.isNotEmpty(), modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("+ Fila", fontSize = 12.sp) }
+        OutlinedButton(onClick = {
+            if (selectedRows.isNotEmpty() && selectedRows.size < grid.size) {
+                publish(grid.filterIndexed { index, _ -> index !in selectedRows }); selectedCells.clear()
+            }
+        }, enabled = selectedRows.isNotEmpty() && selectedRows.size < grid.size, modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("− Fila", fontSize = 12.sp) }
+        OutlinedButton(onClick = {
+            val insertAt = (selectedColumns.maxOrNull() ?: (columnCount - 1)) + 1
+            publish(grid.map { row -> row.toMutableList().apply { add(insertAt.coerceIn(0, size), "") } }); selectedCells.clear()
+        }, enabled = selectedColumns.isNotEmpty(), modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("+ Col.", fontSize = 12.sp) }
+        OutlinedButton(onClick = {
+            if (selectedColumns.isNotEmpty() && selectedColumns.size < columnCount) {
+                publish(grid.map { row -> row.filterIndexed { index, _ -> index !in selectedColumns } }); selectedCells.clear()
+            }
+        }, enabled = selectedColumns.isNotEmpty() && selectedColumns.size < columnCount, modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("− Col.", fontSize = 12.sp) }
+    }
+    if (selectedCells.size == 1) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { showSplitDialog = true }, modifier = Modifier.weight(1f)) { Text("Dividir celda") }
+        }
+    }
+    if (horizontalPair || verticalPair) {
+        OutlinedButton(onClick = {
+            val first = selectedCells[0]
+            val second = selectedCells[1]
+            val topLeft = if (first.first < second.first || (first.first == second.first && first.second < second.second)) first else second
+            val next = grid.map { it.toMutableList() }.toMutableList()
+            val a = next[topLeft.first][topLeft.second]
+            val b = if (first == topLeft) next[second.first][second.second] else next[first.first][first.second]
+            next[topLeft.first][topLeft.second] = listOf(a, b).filter { it.isNotBlank() }.joinToString(" ")
+            if (horizontalPair) {
+                val row = next[topLeft.first]
+                row.removeAt(maxOf(first.second, second.second))
+            } else {
+                next[maxOf(first.first, second.first)][first.second] = ""
+            }
+            publish(next); selectedCells.clear()
+        }, modifier = Modifier.fillMaxWidth()) { Text("Combinar celdas seleccionadas") }
+    }
+    Text("Mantené presionada una celda para seleccionarla. Tocá otras celdas para sumar o quitar selección.", fontSize = 11.sp, color = Muted)
+    Column(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        grid.forEachIndexed { rowIndex, row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                row.forEachIndexed { colIndex, text ->
+                    val selected = (rowIndex to colIndex) in selectedCells
+                    var editValue by remember(template.id, rowIndex, colIndex, text) {
+                        mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(text))
+                    }
+                    Column(
+                        Modifier.widthIn(min = 110.dp).weight(1f, fill = true)
+                            .border(if (selected) 2.dp else 1.dp, if (selected) RoseDark else Line, RoundedCornerShape(8.dp))
+                            .background(if (selected) RosePale else Color.White, RoundedCornerShape(8.dp))
+                            .pointerInput(rowIndex, colIndex, selectedCells.size) {
+                                androidx.compose.foundation.gestures.detectTapGestures(
+                                    onLongPress = { toggleCell(rowIndex, colIndex) },
+                                    onTap = { if (selectedCells.isNotEmpty()) toggleCell(rowIndex, colIndex) },
+                                    onDoubleTap = { editValue = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(0, text.length)) }
+                                )
+                            }
+                            .padding(5.dp)
+                    ) {
+                        androidx.compose.foundation.text.BasicTextField(
+                            value = editValue,
+                            onValueChange = { newValue ->
+                                editValue = newValue
+                                val next = grid.map { it.toMutableList() }.toMutableList()
+                                next[rowIndex][colIndex] = newValue.text
+                                publish(next)
+                            },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp),
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                color = Ink,
+                                fontSize = (24 - text.length / 4).coerceIn(10, 24).sp,
+                                fontWeight = if (rowIndex == 0) FontWeight.SemiBold else FontWeight.Normal,
+                                textAlign = TextAlign.Center
+                            ),
+                            decorationBox = { inner ->
+                                Box(Modifier.fillMaxWidth().heightIn(min = 44.dp), contentAlignment = Alignment.Center) {
+                                    if (editValue.text.isEmpty()) Text("Escribí aquí", color = Muted, fontSize = 11.sp)
+                                    inner()
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+    if (showSplitDialog) {
+        AlertDialog(
+            onDismissRequest = { showSplitDialog = false },
+            title = { Text("Dividir celda") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = splitRows, onValueChange = { splitRows = it.filter(Char::isDigit).take(2) }, label = { Text("Cantidad de filas") }, singleLine = true)
+                    OutlinedTextField(value = splitColumns, onValueChange = { splitColumns = it.filter(Char::isDigit).take(2) }, label = { Text("Cantidad de columnas") }, singleLine = true)
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val cell = selectedCells.single()
+                    val rCount = (splitRows.toIntOrNull() ?: 2).coerceIn(1, 10)
+                    val cCount = (splitColumns.toIntOrNull() ?: 2).coerceIn(1, 10)
+                    val next = grid.map { it.toMutableList() }.toMutableList()
+                    val original = next[cell.first][cell.second]
+                    next[cell.first][cell.second] = original
+                    repeat(cCount - 1) { next[cell.first].add(cell.second + 1, "") }
+                    repeat(rCount - 1) { offset ->
+                        val row = MutableList(next.maxOfOrNull { it.size } ?: cCount) { "" }
+                        next.add(cell.first + offset + 1, row)
+                    }
+                    publish(next); selectedCells.clear(); showSplitDialog = false
+                }, enabled = (splitRows.toIntOrNull() ?: 0) in 1..10 && (splitColumns.toIntOrNull() ?: 0) in 1..10) { Text("Dividir") }
+            },
+            dismissButton = { OutlinedButton(onClick = { showSplitDialog = false }) { Text("Cancelar") } }
+        )
+    }
 }
 
 @Composable
