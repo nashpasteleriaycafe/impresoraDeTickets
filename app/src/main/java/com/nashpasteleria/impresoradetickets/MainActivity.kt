@@ -44,6 +44,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontFamily
@@ -610,6 +612,7 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
                     var editValue by remember(template.id, rowIndex, colIndex, text) {
                         mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(text))
                     }
+                    val cellFocusRequester = remember(template.id, rowIndex, colIndex) { FocusRequester() }
                     Column(
                         Modifier.widthIn(min = 110.dp).weight(1f, fill = true)
                             .border(if (selected) 2.dp else 1.dp, if (selected) RoseDark else Line, RoundedCornerShape(8.dp))
@@ -618,7 +621,7 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
                                 detectTapGestures(
                                     onLongPress = { toggleCell(rowIndex, colIndex) },
                                     onTap = { if (selectedCells.isNotEmpty()) toggleCell(rowIndex, colIndex) },
-                                    onDoubleTap = { editValue = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(0, text.length)) }
+                                    onDoubleTap = { editValue = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(0, text.length)); cellFocusRequester.requestFocus() }
                                 )
                             }
                             .padding(5.dp)
@@ -631,7 +634,7 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
                                 next[rowIndex][colIndex] = newValue.text
                                 publish(next)
                             },
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp).focusRequester(cellFocusRequester),
                             textStyle = androidx.compose.ui.text.TextStyle(
                                 color = Ink,
                                 fontSize = (56f - text.length * 1.4f).coerceIn(12f, 52f).sp,
