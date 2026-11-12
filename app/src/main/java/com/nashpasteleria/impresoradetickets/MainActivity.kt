@@ -548,27 +548,33 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
     val verticalPair = selectedCells.size == 2 && selectedCells[0].second == selectedCells[1].second &&
         kotlin.math.abs(selectedCells[0].first - selectedCells[1].first) == 1
 
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        OutlinedButton(onClick = {
-            val insertAt = (selectedRows.maxOrNull() ?: (grid.size - 1)) + 1
-            val next = grid.toMutableList()
-            next.add(insertAt.coerceIn(0, next.size), List(columnCount) { "" })
-            publish(next); selectedCells.clear()
-        }, enabled = selectedRows.isNotEmpty(), modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("+ Fila", fontSize = 12.sp) }
-        OutlinedButton(onClick = {
-            if (selectedRows.isNotEmpty() && selectedRows.size < grid.size) {
-                publish(grid.filterIndexed { index, _ -> index !in selectedRows }); selectedCells.clear()
+    if (selectedRows.isNotEmpty() || selectedColumns.isNotEmpty()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (selectedRows.isNotEmpty()) {
+                OutlinedButton(onClick = {
+                    val insertAt = (selectedRows.maxOrNull() ?: (grid.size - 1)) + 1
+                    val next = grid.toMutableList()
+                    next.add(insertAt.coerceIn(0, next.size), List(columnCount) { "" })
+                    publish(next); selectedCells.clear()
+                }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("+ Fila", fontSize = 12.sp) }
+                if (selectedRows.size < grid.size) {
+                    OutlinedButton(onClick = {
+                        publish(grid.filterIndexed { index, _ -> index !in selectedRows }); selectedCells.clear()
+                    }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("− Fila", fontSize = 12.sp) }
+                }
             }
-        }, enabled = selectedRows.isNotEmpty() && selectedRows.size < grid.size, modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("− Fila", fontSize = 12.sp) }
-        OutlinedButton(onClick = {
-            val insertAt = (selectedColumns.maxOrNull() ?: (columnCount - 1)) + 1
-            publish(grid.map { row -> row.toMutableList().apply { add(insertAt.coerceIn(0, size), "") } }); selectedCells.clear()
-        }, enabled = selectedColumns.isNotEmpty(), modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("+ Col.", fontSize = 12.sp) }
-        OutlinedButton(onClick = {
-            if (selectedColumns.isNotEmpty() && selectedColumns.size < columnCount) {
-                publish(grid.map { row -> row.filterIndexed { index, _ -> index !in selectedColumns } }); selectedCells.clear()
+            if (selectedColumns.isNotEmpty()) {
+                OutlinedButton(onClick = {
+                    val insertAt = (selectedColumns.maxOrNull() ?: (columnCount - 1)) + 1
+                    publish(grid.map { row -> row.toMutableList().apply { add(insertAt.coerceIn(0, size), "") } }); selectedCells.clear()
+                }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("+ Col.", fontSize = 12.sp) }
+                if (selectedColumns.size < columnCount) {
+                    OutlinedButton(onClick = {
+                        publish(grid.map { row -> row.filterIndexed { index, _ -> index !in selectedColumns } }); selectedCells.clear()
+                    }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("− Col.", fontSize = 12.sp) }
+                }
             }
-        }, enabled = selectedColumns.isNotEmpty() && selectedColumns.size < columnCount, modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("− Col.", fontSize = 12.sp) }
+        }
     }
     if (selectedCells.size == 1) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -626,7 +632,7 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
                             modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp),
                             textStyle = androidx.compose.ui.text.TextStyle(
                                 color = Ink,
-                                fontSize = (24 - text.length / 4).coerceIn(10, 24).sp,
+                                fontSize = (32 - text.length / 2).coerceIn(12, 32).sp,
                                 fontWeight = if (rowIndex == 0) FontWeight.SemiBold else FontWeight.Normal,
                                 textAlign = TextAlign.Center
                             ),
@@ -681,7 +687,7 @@ private fun TicketContentPreview(content: String) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(0.dp)) {
                 cells.forEach { cell ->
                     Box(Modifier.weight(1f).border(0.5.dp, Color(0xFFE9D6DC)).padding(horizontal = 4.dp, vertical = 5.dp)) {
-                        Text(cell, fontFamily = FontFamily.Monospace, fontSize = (24 - cell.length / 4).coerceIn(10, 24).sp, lineHeight = (28 - cell.length / 4).coerceIn(12, 28).sp, color = Ink, maxLines = 3)
+                        Text(cell, fontFamily = FontFamily.Monospace, fontSize = (32 - cell.length / 2).coerceIn(12, 32).sp, lineHeight = (36 - cell.length / 2).coerceIn(14, 36).sp, color = Ink, maxLines = 3)
                     }
                 }
             }
