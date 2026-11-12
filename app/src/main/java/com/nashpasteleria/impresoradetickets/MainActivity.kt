@@ -18,6 +18,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -255,10 +257,10 @@ private fun TicketApp(context: Context) {
                     item { SectionHeading("Biblioteca de imágenes", "Prepará recursos para personalizar tus tickets") }
                     item {
                         CardBlock {
-                            Box(Modifier.fillMaxWidth().heightIn(min = 110.dp, max = 260.dp).clip(RoundedCornerShape(16.dp)).background(RosePale), contentAlignment = Alignment.Center) {
+                            Box(Modifier.fillMaxWidth().heightIn(min = 110.dp, max = 320.dp).clip(RoundedCornerShape(16.dp)).background(RosePale).verticalScroll(rememberScrollState()), contentAlignment = Alignment.Center) {
                                 val preview = imagePreview
                                 if (preview == null) Icon(Icons.Default.Image, null, tint = RoseDark, modifier = Modifier.size(46.dp))
-                                else androidx.compose.foundation.Image(bitmap = preview.asImageBitmap(), contentDescription = "Vista previa en blanco y negro", modifier = Modifier.fillMaxWidth().padding(8.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
+                                else androidx.compose.foundation.Image(bitmap = preview.asImageBitmap(), contentDescription = "Vista previa en blanco y negro", modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp, max = 1100.dp).padding(8.dp), contentScale = androidx.compose.ui.layout.ContentScale.FillWidth)
                             }
                             Text(if (selectedImage == null) "Todavía no elegiste una imagen" else "Imagen seleccionada", fontWeight = FontWeight.SemiBold, color = Ink)
                             Text(selectedImage?.lastPathSegment ?: "Elegí una imagen desde tu dispositivo.", fontSize = 12.sp, color = Muted)
@@ -335,17 +337,16 @@ private fun TicketApp(context: Context) {
                                 ) {
                                     items(pdfPages.size) { index ->
                                         Card(
-                                            modifier = Modifier.fillMaxWidth(),
+                                            modifier = Modifier.fillMaxWidth().clickable {
+                                                if (index in selectedPdfPages) selectedPdfPages.remove(index) else selectedPdfPages.add(index)
+                                                pdfSelectionText = formatPageRanges(selectedPdfPages.toList())
+                                            },
                                             shape = RoundedCornerShape(12.dp),
                                             colors = CardDefaults.cardColors(containerColor = if (index in selectedPdfPages) RosePale else Color.White)
                                         ) {
                                             Column(Modifier.padding(8.dp)) {
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Checkbox(checked = index in selectedPdfPages, onCheckedChange = { checked ->
-                                                        if (checked && index !in selectedPdfPages) selectedPdfPages.add(index)
-                                                        if (!checked) selectedPdfPages.remove(index)
-                                                        pdfSelectionText = formatPageRanges(selectedPdfPages.toList())
-                                                    })
+                                                    Checkbox(checked = index in selectedPdfPages, onCheckedChange = null)
                                                     Text((index + 1).toString(), fontWeight = FontWeight.SemiBold)
                                                 }
                                                 androidx.compose.foundation.Image(bitmap = pdfPages[index].asImageBitmap(), contentDescription = "Vista previa de página " + (index + 1), modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
