@@ -11,6 +11,8 @@ import android.os.Bundle
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -128,15 +130,15 @@ private fun TicketApp(context: Context) {
     var imagePreview by remember { mutableStateOf<Bitmap?>(null) }
     var pdfPages by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
     val selectedPdfPages = remember { mutableStateListOf<Int>() }
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { selectedImage = it }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { selectedImage = it; imageRotation = 0 }
     val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { selectedPdf = it }
     val selected = templates.firstOrNull { it.id == selectedId } ?: templates.firstOrNull()
 
     LaunchedEffect(selectedImage, imageRotation) {
-        imagePreview = selectedImage?.let { uri -> runCatching { loadMonochromeImage(context, uri, imageRotation) }.getOrNull() }
+        imagePreview = selectedImage?.let { uri -> runCatching { withContext(Dispatchers.IO) { loadMonochromeImage(context, uri, imageRotation) } }.getOrNull() }
     }
     LaunchedEffect(selectedPdf, paperWidth) {
-        pdfPages = selectedPdf?.let { uri -> runCatching { renderPdfPages(context, uri, paperWidth) }.getOrDefault(emptyList()) } ?: emptyList()
+        pdfPages = selectedPdf?.let { uri -> runCatching { withContext(Dispatchers.IO) { renderPdfPages(context, uri, paperWidth) } }.getOrDefault(emptyList()) } ?: emptyList()
         selectedPdfPages.clear()
         selectedPdfPages.addAll(pdfPages.indices.toList())
     }
