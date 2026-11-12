@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -38,6 +39,9 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.RotateLeft
+import androidx.compose.material.icons.filled.RotateRight
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.*
@@ -76,7 +80,7 @@ data class TicketTemplate(
 )
 
 private enum class AppTab(val title: String) {
-    DESIGN("Diseñador"), TEMPLATES("Plantillas"), IMAGES("Imágenes"), PDF("PDF"), SETTINGS("Ajustes")
+    DESIGN("Diseño"), TEMPLATES("Plantillas"), IMAGES("Imágenes"), PDF("PDF"), SETTINGS("Ajustes")
 }
 
 class MainActivity : ComponentActivity() {
@@ -123,6 +127,9 @@ private fun TicketApp(context: Context) {
     }
     var selectedId by remember { mutableStateOf(templates.first().id) }
     var deleteCandidate by remember { mutableStateOf<TicketTemplate?>(null) }
+    var showSaveTemplateDialog by remember { mutableStateOf(false) }
+    var newTemplateName by remember { mutableStateOf("") }
+    var pdfSelectionText by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf<String?>(null) }
     var activeTab by remember { mutableStateOf(AppTab.DESIGN) }
     var paperWidth by remember { mutableIntStateOf(prefs.getInt("paper_width", 58).coerceIn(40, 120)) }
@@ -144,6 +151,7 @@ private fun TicketApp(context: Context) {
         pdfPages = selectedPdf?.let { uri -> runCatching { withContext(Dispatchers.IO) { renderPdfPages(context, uri, paperWidth) } }.getOrDefault(emptyList()) } ?: emptyList()
         selectedPdfPages.clear()
         selectedPdfPages.addAll(pdfPages.indices.toList())
+        pdfSelectionText = formatPageRanges(selectedPdfPages.toList())
     }
 
     fun persist() {
@@ -203,26 +211,24 @@ private fun TicketApp(context: Context) {
         ) {
             when (activeTab) {
                 AppTab.DESIGN -> {
-                    item { SectionHeading("Diseñá tu ticket", "Tocá una celda para seleccionarla y editá su contenido") }
                     item {
                         CardBlock {
-                            OutlinedTextField(
-                                value = selected?.name ?: "",
-                                onValueChange = { value -> selected?.let { updateTemplate(templates, it.copy(name = value), ::persist) } },
-                                label = { Text("Nombre de la plantilla") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
                             selected?.let { template ->
                                 TicketTableEditor(template = template, onContentChange = { content ->
                                     updateTemplate(templates, template.copy(content = content), ::persist)
                                 })
                             }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                FilledIconButton(onClick = {
+                                    newTemplateName = ""
+                                    showSaveTemplateDialog = true
+                                }) { Icon(Icons.Default.Save, contentDescription = "Guardar como nueva plantilla") }
+                            }
                         }
                     }
                     item {
                         CardBlock {
-                            Text("Vista previa · papel de ${paperWidth} mm", fontWeight = FontWeight.SemiBold, color = Ink)
+                            Text("Vista previa del papel (" + paperWidth + " mm)", fontWeight = FontWeight.SemiBold, color = Ink)
                             TicketContentPreview(selected?.content ?: "")
                         }
                     }
@@ -241,14 +247,6 @@ private fun TicketApp(context: Context) {
                 }
                 AppTab.TEMPLATES -> {
                     item { SectionHeading("Tus plantillas", "Guardá distintos diseños para cada necesidad") }
-                    item {
-                        Button(onClick = {
-                            val created = TicketTemplate(name = "Plantilla ${templates.size + 1}", paperWidth = paperWidth)
-                            templates.add(created); selectedId = created.id; persist(); activeTab = AppTab.DESIGN
-                        }, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(15.dp)) {
-                            Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Crear nueva plantilla")
-                        }
-                    }
                     items(templates, key = { it.id }) { template ->
                         CardBlock {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -285,9 +283,15 @@ private fun TicketApp(context: Context) {
                             }
                             Text(if (selectedImage == null) "Todavía no elegiste una imagen" else "Imagen seleccionada", fontWeight = FontWeight.SemiBold, color = Ink)
                             Text(selectedImage?.lastPathSegment ?: "Elegí una imagen desde tu dispositivo.", fontSize = 12.sp, color = Muted)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(onClick = { imageRotation = (imageRotation + 90) % 360 }, enabled = selectedImage != null, modifier = Modifier.weight(1f)) { Text("Rotar 90°") }
-                                Text("Rotación: ${imageRotation}°", modifier = Modifier.align(Alignment.CenterVertically), color = Muted, fontSize = 12.sp)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { imageRotation = (imageRotation + 270) % 360 }, enabled = selectedImage != null) {
+                                    Icon(Icons.Default.RotateLeft, contentDescription = "Girar 90 grados en sentido antihorario")
+                                }
+                                IconButton(onClick = { imageRotation = (imageRotation + 90) % 360 }, enabled = selectedImage != null) {
+                                    Icon(Icons.Default.RotateRight, contentDescription = "Girar 90 grados en sentido horario")
+                                }
+                                Spacer(Modifier.weight(1f))
+                                Text("${imageRotation}°", color = Muted, fontSize = 12.sp)
                             }
                             Button(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
                                 Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Elegir imagen")
@@ -317,42 +321,60 @@ private fun TicketApp(context: Context) {
                             Button(onClick = { pdfPicker.launch(arrayOf("application/pdf")) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
                                 Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Elegir PDF")
                             }
-                            Button(onClick = {
-                                val uri = selectedPdf
-                                notice = if (uri == null) "Primero elegí un PDF." else runCatching {
-                                    val descriptor = context.contentResolver.openFileDescriptor(uri, "r") ?: error("No se pudo abrir el PDF.")
-                                    descriptor.use { pfd ->
-                                        PdfRenderer(pfd).use { renderer ->
-                                            if (renderer.pageCount == 0) error("El PDF no contiene páginas.")
-                                            renderer.openPage(0).use { page ->
-                                                val targetWidth = if ((paperWidth) == 58) 384 else 576
-                                                val targetHeight = (page.height * targetWidth.toFloat() / page.width).toInt().coerceAtLeast(1)
-                                                val bitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
-                                                bitmap.eraseColor(android.graphics.Color.WHITE)
-                                                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
-                                                UsbEscPosPrinter.printBitmap(context, bitmap, selected?.paperWidth ?: 80, selected?.feedLines ?: 3)
+                            if (pdfPages.isNotEmpty()) {
+                                Text("Seleccioná las páginas que querés conservar e imprimir", fontSize = 12.sp, color = Muted)
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(onClick = {
+                                        selectedPdfPages.clear()
+                                        selectedPdfPages.addAll(pdfPages.indices)
+                                        pdfSelectionText = formatPageRanges(selectedPdfPages.toList())
+                                    }, modifier = Modifier.weight(1f)) { Text("Seleccionar todas") }
+                                    OutlinedButton(onClick = {
+                                        selectedPdfPages.clear()
+                                        pdfSelectionText = ""
+                                    }, modifier = Modifier.weight(1f)) { Text("Deseleccionar") }
+                                }
+                                OutlinedTextField(
+                                    value = pdfSelectionText,
+                                    onValueChange = { value ->
+                                        pdfSelectionText = value
+                                        val parsed = parsePageRanges(value, pdfPages.size)
+                                        selectedPdfPages.clear()
+                                        selectedPdfPages.addAll(parsed)
+                                    },
+                                    label = { Text("Páginas seleccionadas") },
+                                    placeholder = { Text("Ej.: 1-2, 4-6") },
+                                    supportingText = { Text("Ingresá páginas o rangos separados por comas. Total: " + pdfPages.size + ".") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+                                androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                                    columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(minSize = 120.dp),
+                                    modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(pdfPages.size) { index ->
+                                        Card(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = CardDefaults.cardColors(containerColor = if (index in selectedPdfPages) RosePale else Color.White)
+                                        ) {
+                                            Column(Modifier.padding(8.dp)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Checkbox(checked = index in selectedPdfPages, onCheckedChange = { checked ->
+                                                        if (checked && index !in selectedPdfPages) selectedPdfPages.add(index)
+                                                        if (!checked) selectedPdfPages.remove(index)
+                                                        pdfSelectionText = formatPageRanges(selectedPdfPages.toList())
+                                                    })
+                                                    Text((index + 1).toString(), fontWeight = FontWeight.SemiBold)
+                                                }
+                                                androidx.compose.foundation.Image(bitmap = pdfPages[index].asImageBitmap(), contentDescription = "Vista previa de página " + (index + 1), modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
                                             }
                                         }
                                     }
-                                }.getOrElse { "No se pudo imprimir la primera página del PDF: " + (it.message ?: "error desconocido") }
-                            }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
-                                Icon(Icons.Default.Print, null); Spacer(Modifier.width(8.dp)); Text("Imprimir primera página por USB")
-                            }
-                            if (pdfPages.isNotEmpty()) {
-                                Text("Seleccioná las páginas que querés conservar e imprimir", fontSize = 12.sp, color = Muted)
-                                pdfPages.forEachIndexed { index, pageBitmap ->
-                                    CardBlock {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Checkbox(checked = index in selectedPdfPages, onCheckedChange = { checked ->
-                                                if (checked && index !in selectedPdfPages) selectedPdfPages.add(index)
-                                                if (!checked) selectedPdfPages.remove(index)
-                                            })
-                                            Text("Página ${index + 1}", fontWeight = FontWeight.SemiBold)
-                                        }
-                                        androidx.compose.foundation.Image(bitmap = pageBitmap.asImageBitmap(), contentDescription = "Vista previa de página ${index + 1}", modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
-                                    }
                                 }
-                                Text("${selectedPdfPages.size} de ${pdfPages.size} páginas seleccionadas. Se imprimirán una debajo de otra.", fontSize = 11.sp, color = Muted)
+                                Text(selectedPdfPages.size.toString() + " de " + pdfPages.size + " páginas seleccionadas. Se imprimirán una debajo de otra.", fontSize = 11.sp, color = Muted)
                                 if (selectedPdfPages.isNotEmpty()) {
                                     Text("Vista previa del documento resultante", fontWeight = FontWeight.SemiBold, color = Ink)
                                     val combinedPreview = remember(selectedPdfPages.toList(), pdfPages) {
@@ -444,6 +466,37 @@ private fun TicketApp(context: Context) {
         }
     }
 
+    if (showSaveTemplateDialog) {
+        AlertDialog(
+            onDismissRequest = { showSaveTemplateDialog = false },
+            title = { Text("Guardar nueva plantilla") },
+            text = {
+                OutlinedTextField(value = newTemplateName, onValueChange = { newTemplateName = it },
+                    label = { Text("Nombre de la plantilla") }, singleLine = true)
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val name = newTemplateName.trim()
+                    if (name.isNotEmpty()) {
+                        val source = selected
+                        val created = TicketTemplate(
+                            name = name,
+                            content = source?.content ?: ("Nombre del producto\n.\n" + SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())),
+                            paperWidth = paperWidth,
+                            feedLines = source?.feedLines ?: 3,
+                            cutAfterPrint = source?.cutAfterPrint ?: true
+                        )
+                        templates.add(created)
+                        selectedId = created.id
+                        persist()
+                        showSaveTemplateDialog = false
+                        activeTab = AppTab.TEMPLATES
+                    }
+                }, enabled = newTemplateName.trim().isNotEmpty()) { Text("Guardar") }
+            },
+            dismissButton = { OutlinedButton(onClick = { showSaveTemplateDialog = false }) { Text("Cancelar") } }
+        )
+    }
     deleteCandidate?.let { template ->
         AlertDialog(
             onDismissRequest = { deleteCandidate = null },
@@ -464,6 +517,42 @@ private fun TicketApp(context: Context) {
         AlertDialog(onDismissRequest = { notice = null }, title = { Text("Impresión USB") }, text = { Text(message) },
             confirmButton = { Button(onClick = { notice = null }) { Text("Aceptar") } })
     }
+}
+
+
+private fun formatPageRanges(indices: List<Int>): String {
+    val pages = indices.distinct().sorted().map { it + 1 }
+    if (pages.isEmpty()) return ""
+    val ranges = mutableListOf<String>()
+    var start = pages.first()
+    var previous = start
+    for (page in pages.drop(1)) {
+        if (page == previous + 1) previous = page
+        else {
+            ranges.add(if (start == previous) start.toString() else "$start-$previous")
+            start = page
+            previous = page
+        }
+    }
+    ranges.add(if (start == previous) start.toString() else "$start-$previous")
+    return ranges.joinToString(", ")
+}
+
+private fun parsePageRanges(value: String, pageCount: Int): List<Int> {
+    val pages = sortedSetOf<Int>()
+    value.split(",").forEach { part ->
+        val token = part.trim()
+        if (token.isEmpty()) return@forEach
+        val range = Regex("""^(\d+)\s*-\s*(\d+)$""").matchEntire(token)
+        if (range != null) {
+            val first = range.groupValues[1].toIntOrNull() ?: return@forEach
+            val last = range.groupValues[2].toIntOrNull() ?: return@forEach
+            if (first <= last) for (page in first..last) if (page in 1..pageCount) pages.add(page - 1)
+        } else {
+            token.toIntOrNull()?.let { if (it in 1..pageCount) pages.add(it - 1) }
+        }
+    }
+    return pages.toList()
 }
 
 private fun updateTemplate(templates: MutableList<TicketTemplate>, updated: TicketTemplate, persist: () -> Unit) {
@@ -618,13 +707,7 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
                         Modifier.widthIn(min = 110.dp).weight(1f, fill = true)
                             .border(if (selected) 2.dp else 1.dp, if (selected) RoseDark else Line, RoundedCornerShape(8.dp))
                             .background(if (selected) RosePale else Color.White, RoundedCornerShape(8.dp))
-                            .pointerInput(rowIndex, colIndex, selectedCells.size) {
-                                detectTapGestures(
-                                    onLongPress = { toggleCell(rowIndex, colIndex) },
-                                    onTap = { if (selectedCells.isNotEmpty()) toggleCell(rowIndex, colIndex) },
-                                    onDoubleTap = { editValue = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(0, text.length)); cellFocusRequester.requestFocus() }
-                                )
-                            }
+                            
                             .padding(5.dp)
                     ) {
                         androidx.compose.foundation.text.BasicTextField(
