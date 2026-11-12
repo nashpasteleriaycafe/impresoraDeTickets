@@ -3,6 +3,8 @@ package com.nashpasteleria.impresoradetickets
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.graphics.Bitmap
+import android.graphics.Matrix
+import android.graphics.Canvas as AndroidCanvas
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.Bundle
@@ -115,9 +117,22 @@ private fun TicketApp(context: Context) {
     var paperWidthText by remember { mutableStateOf(paperWidth.toString()) }
     var selectedImage by remember { mutableStateOf<Uri?>(null) }
     var selectedPdf by remember { mutableStateOf<Uri?>(null) }
+    var imageRotation by remember { mutableIntStateOf(0) }
+    var imagePreview by remember { mutableStateOf<Bitmap?>(null) }
+    var pdfPages by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
+    val selectedPdfPages = remember { mutableStateListOf<Int>() }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { selectedImage = it }
     val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { selectedPdf = it }
     val selected = templates.firstOrNull { it.id == selectedId } ?: templates.firstOrNull()
+
+    LaunchedEffect(selectedImage, imageRotation) {
+        imagePreview = selectedImage?.let { uri -> runCatching { loadMonochromeImage(context, uri, imageRotation) }.getOrNull() }
+    }
+    LaunchedEffect(selectedPdf, paperWidth) {
+        pdfPages = selectedPdf?.let { uri -> runCatching { renderPdfPages(context, uri, paperWidth) }.getOrDefault(emptyList()) } ?: emptyList()
+        selectedPdfPages.clear()
+        selectedPdfPages.addAll(pdfPages.indices)
+    }
 
     fun persist() {
         val arr = JSONArray()
@@ -248,20 +263,25 @@ private fun TicketApp(context: Context) {
                     item { SectionHeading("Biblioteca de imágenes", "Prepará recursos para personalizar tus tickets") }
                     item {
                         CardBlock {
-                            Box(Modifier.fillMaxWidth().height(110.dp).clip(RoundedCornerShape(16.dp)).background(RosePale), contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Image, null, tint = RoseDark, modifier = Modifier.size(46.dp))
+                            Box(Modifier.fillMaxWidth().heightIn(min = 110.dp, max = 260.dp).clip(RoundedCornerShape(16.dp)).background(RosePale), contentAlignment = Alignment.Center) {
+                                val preview = imagePreview
+                                if (preview == null) Icon(Icons.Default.Image, null, tint = RoseDark, modifier = Modifier.size(46.dp))
+                                else androidx.compose.foundation.Image(bitmap = preview.asImageBitmap(), contentDescription = "Vista previa en blanco y negro", modifier = Modifier.fillMaxWidth().padding(8.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
                             }
                             Text(if (selectedImage == null) "Todavía no elegiste una imagen" else "Imagen seleccionada", fontWeight = FontWeight.SemiBold, color = Ink)
                             Text(selectedImage?.lastPathSegment ?: "Elegí una imagen desde tu dispositivo.", fontSize = 12.sp, color = Muted)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { imageRotation = (imageRotation + 90) % 360 }, enabled = selectedImage != null, modifier = Modifier.weight(1f)) { Text("Rotar 90°") }
+                                Text("Rotación: ${imageRotation}°", modifier = Modifier.align(Alignment.CenterVertically), color = Muted, fontSize = 12.sp)
+                            }
                             Button(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
                                 Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Elegir imagen")
                             }
                             Button(onClick = {
                                 val uri = selectedImage
                                 notice = if (uri == null) "Primero elegí una imagen." else runCatching {
-                                    val bitmap = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
-                                        ?: error("No se pudo leer la imagen.")
-                                    UsbEscPosPrinter.printBitmap(context, bitmap, selected?.paperWidth ?: 80, selected?.feedLines ?: 3)
+                                    val bitmap = imagePreview ?: loadMonochromeImage(context, uri, imageRotation)
+                                    UsbEscPosPrinter.printBitmap(context, bitmap, paperWidth, selected?.feedLines ?: 3)
                                 }.getOrElse { "No se pudo preparar la imagen: " + (it.message ?: "error desconocido") }
                             }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
                                 Icon(Icons.Default.Print, null); Spacer(Modifier.width(8.dp)); Text("Imprimir imagen por USB")
@@ -274,8 +294,8 @@ private fun TicketApp(context: Context) {
                     item { SectionHeading("Documentos PDF", "Elegí un archivo para tenerlo a mano") }
                     item {
                         CardBlock {
-                            Box(Modifier.fillMaxWidth().height(110.dp).clip(RoundedCornerShape(16.dp)).background(RosePale), contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.PictureAsPdf, null, tint = RoseDark, modifier = Modifier.size(46.dp))
+                            Box(Modifier.fillMaxWidth().height(70.dp).clip(RoundedCornerShape(16.dp)).background(RosePale), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.PictureAsPdf, null, tint = RoseDark, modifier = Modifier.size(36.dp))
                             }
                             Text(if (selectedPdf == null) "Ningún PDF seleccionado" else "PDF seleccionado", fontWeight = FontWeight.SemiBold, color = Ink)
                             Text(selectedPdf?.lastPathSegment ?: "Seleccioná un documento PDF desde tu dispositivo.", fontSize = 12.sp, color = Muted)
@@ -290,7 +310,7 @@ private fun TicketApp(context: Context) {
                                         PdfRenderer(pfd).use { renderer ->
                                             if (renderer.pageCount == 0) error("El PDF no contiene páginas.")
                                             renderer.openPage(0).use { page ->
-                                                val targetWidth = if ((selected?.paperWidth ?: 80) == 58) 384 else 576
+                                                val targetWidth = if ((paperWidth) == 58) 384 else 576
                                                 val targetHeight = (page.height * targetWidth.toFloat() / page.width).toInt().coerceAtLeast(1)
                                                 val bitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
                                                 bitmap.eraseColor(android.graphics.Color.WHITE)
@@ -303,7 +323,41 @@ private fun TicketApp(context: Context) {
                             }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
                                 Icon(Icons.Default.Print, null); Spacer(Modifier.width(8.dp)); Text("Imprimir primera página por USB")
                             }
-                            Text("El PDF se rasteriza en blanco y negro; por ahora se imprime la primera página.", fontSize = 11.sp, color = Muted)
+                            if (pdfPages.isNotEmpty()) {
+                                Text("Seleccioná las páginas que querés conservar e imprimir", fontSize = 12.sp, color = Muted)
+                                pdfPages.forEachIndexed { index, pageBitmap ->
+                                    CardBlock {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Checkbox(checked = index in selectedPdfPages, onCheckedChange = { checked ->
+                                                if (checked && index !in selectedPdfPages) selectedPdfPages.add(index)
+                                                if (!checked) selectedPdfPages.remove(index)
+                                            })
+                                            Text("Página ${index + 1}", fontWeight = FontWeight.SemiBold)
+                                        }
+                                        androidx.compose.foundation.Image(bitmap = pageBitmap.asImageBitmap(), contentDescription = "Vista previa de página ${index + 1}", modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
+                                    }
+                                }
+                                Text("${selectedPdfPages.size} de ${pdfPages.size} páginas seleccionadas. Se imprimirán una debajo de otra.", fontSize = 11.sp, color = Muted)
+                            }
+                            Button(onClick = {
+                                notice = if (pdfPages.isEmpty()) "Primero elegí un PDF válido." else if (selectedPdfPages.isEmpty()) "Seleccioná al menos una página." else runCatching {
+                                    val chosen = selectedPdfPages.sorted().map { pdfPages[it] }
+                                    val width = chosen.maxOf { it.width }
+                                    val height = chosen.sumOf { it.height }
+                                    val combined = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                                    combined.eraseColor(android.graphics.Color.WHITE)
+                                    val canvas = AndroidCanvas(combined)
+                                    var y = 0f
+                                    chosen.forEach { page ->
+                                        canvas.drawBitmap(page, 0f, y, null)
+                                        y += page.height.toFloat()
+                                    }
+                                    UsbEscPosPrinter.printBitmap(context, combined, paperWidth, selected?.feedLines ?: 3)
+                                }.getOrElse { "No se pudo imprimir el PDF: " + (it.message ?: "error desconocido") }
+                            }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
+                                Icon(Icons.Default.Print, null); Spacer(Modifier.width(8.dp)); Text("Imprimir páginas seleccionadas")
+                            }
+                            Text("Las páginas seleccionadas se rasterizan en blanco y negro y se imprimen en orden, una debajo de otra.", fontSize = 11.sp, color = Muted)
                         }
                     }
                 }
@@ -414,6 +468,44 @@ private fun TicketApp(context: Context) {
 private fun updateTemplate(templates: MutableList<TicketTemplate>, updated: TicketTemplate, persist: () -> Unit) {
     val index = templates.indexOfFirst { it.id == updated.id }
     if (index >= 0) { templates[index] = updated; persist() }
+}
+
+private fun loadMonochromeImage(context: Context, uri: Uri, rotation: Int): Bitmap {
+    val source = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+        ?: error("No se pudo abrir la imagen.")
+    val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
+    val rotated = Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
+    val result = Bitmap.createBitmap(rotated.width, rotated.height, Bitmap.Config.ARGB_8888)
+    for (y in 0 until rotated.height) for (x in 0 until rotated.width) {
+        val p = rotated.getPixel(x, y)
+        val l = (android.graphics.Color.red(p) * 299 + android.graphics.Color.green(p) * 587 + android.graphics.Color.blue(p) * 114) / 1000
+        result.setPixel(x, y, if (l < 160) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+    }
+    return result
+}
+
+private fun renderPdfPages(context: Context, uri: Uri, paperWidth: Int): List<Bitmap> {
+    val descriptor = context.contentResolver.openFileDescriptor(uri, "r") ?: error("No se pudo abrir el PDF.")
+    descriptor.use { pfd ->
+        PdfRenderer(pfd).use { renderer ->
+            val targetWidth = if (paperWidth <= 58) 384 else 576
+            return (0 until renderer.pageCount).map { index ->
+                renderer.openPage(index).use { page ->
+                    val targetHeight = (page.height * targetWidth.toFloat() / page.width).toInt().coerceAtLeast(1)
+                    val color = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+                    color.eraseColor(android.graphics.Color.WHITE)
+                    page.render(color, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
+                    val mono = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+                    for (y in 0 until targetHeight) for (x in 0 until targetWidth) {
+                        val p = color.getPixel(x, y)
+                        val l = (android.graphics.Color.red(p) * 299 + android.graphics.Color.green(p) * 587 + android.graphics.Color.blue(p) * 114) / 1000
+                        mono.setPixel(x, y, if (l < 160) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+                    }
+                    mono
+                }
+            }
+        }
+    }
 }
 
 @Composable
