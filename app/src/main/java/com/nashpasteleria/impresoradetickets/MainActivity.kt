@@ -613,7 +613,7 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
                             .border(if (selected) 2.dp else 1.dp, if (selected) RoseDark else Line, RoundedCornerShape(8.dp))
                             .background(if (selected) RosePale else Color.White, RoundedCornerShape(8.dp))
                             .pointerInput(rowIndex, colIndex, selectedCells.size) {
-                                androidx.compose.foundation.gestures.detectTapGestures(
+                                detectTapGestures(
                                     onLongPress = { toggleCell(rowIndex, colIndex) },
                                     onTap = { if (selectedCells.isNotEmpty()) toggleCell(rowIndex, colIndex) },
                                     onDoubleTap = { editValue = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(0, text.length)) }
