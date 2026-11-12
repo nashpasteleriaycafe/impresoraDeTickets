@@ -328,92 +328,56 @@ private fun TicketApp(context: Context) {
                     }
                 }
                 AppTab.PDF -> {
-                    item { SectionHeading("Documentos PDF", "Elegí un archivo para tenerlo a mano") }
+                    item { SectionHeading("Documentos PDF", "Elegí un archivo y las páginas que querés imprimir") }
                     item {
-                        CardBlock {
-                            Box(Modifier.fillMaxWidth().height(70.dp).clip(RoundedCornerShape(16.dp)).background(RosePale), contentAlignment = Alignment.Center) {
-                                if (pdfLoading) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) { CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp); Text("Cargando PDF…", color = RoseDark, fontSize = 13.sp) }
-                                else Icon(Icons.Default.PictureAsPdf, null, tint = RoseDark, modifier = Modifier.size(36.dp))
-                            }
-                            if (pdfLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
-                            Text(if (selectedPdf == null) "Ningún PDF seleccionado" else "PDF seleccionado", fontWeight = FontWeight.SemiBold, color = Ink)
-                            Text(selectedPdf?.lastPathSegment ?: "Seleccioná un documento PDF desde tu dispositivo.", fontSize = 12.sp, color = Muted)
-                            Button(onClick = { pdfPicker.launch(arrayOf("application/pdf")) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
-                                Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Elegir PDF")
-                            }
-                            if (pdfPages.isNotEmpty()) {
-                                Text("Seleccioná las páginas que querés conservar e imprimir", fontSize = 12.sp, color = Muted)
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OutlinedButton(onClick = {
-                                        selectedPdfPages.clear()
-                                        selectedPdfPages.addAll(pdfPages.indices)
-                                        pdfSelectionText = formatPageRanges(selectedPdfPages.toList())
-                                    }, modifier = Modifier.weight(1f)) { Text("Seleccionar todas") }
-                                    OutlinedButton(onClick = {
-                                        selectedPdfPages.clear()
-                                        pdfSelectionText = ""
-                                    }, modifier = Modifier.weight(1f)) { Text("Deseleccionar") }
-                                }
-                                OutlinedTextField(
-                                    value = pdfSelectionText,
-                                    onValueChange = { value ->
-                                        pdfSelectionText = value
-                                        val parsed = parsePageRanges(value, pdfPages.size)
-                                        selectedPdfPages.clear()
-                                        selectedPdfPages.addAll(parsed)
-                                    },
-                                    label = { Text("Páginas seleccionadas") },
-                                    placeholder = { Text("Ej.: 1-2, 4-6") },
-                                    supportingText = { Text("Ingresá páginas o rangos separados por comas. Total: " + pdfPages.size + ".") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true
-                                )
-                                androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
-                                    columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(minSize = 120.dp),
-                                    modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    items(pdfPages.size) { index ->
-                                        Card(
-                                            modifier = Modifier.fillMaxWidth().clickable {
-                                                if (index in selectedPdfPages) selectedPdfPages.remove(index) else selectedPdfPages.add(index)
-                                                pdfSelectionText = formatPageRanges(selectedPdfPages.toList())
-                                            },
-                                            shape = RoundedCornerShape(12.dp),
-                                            colors = CardDefaults.cardColors(containerColor = if (index in selectedPdfPages) RosePale else Color.White)
-                                        ) {
-                                            Column(Modifier.padding(8.dp)) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Checkbox(checked = index in selectedPdfPages, onCheckedChange = null)
-                                                    Text((index + 1).toString(), fontWeight = FontWeight.SemiBold)
+                        if (isLandscape) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+                                CardBlock {
+                                    Text("Previsualización de páginas", fontWeight = FontWeight.SemiBold, color = Ink)
+                                    if (pdfLoading) {
+                                        Box(Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally) { CircularProgressIndicator(); Spacer(Modifier.height(12.dp)); Text("Cargando PDF…", color = RoseDark) } }
+                                        LinearProgressIndicator(Modifier.fillMaxWidth())
+                                    } else if (pdfPages.isEmpty()) {
+                                        Box(Modifier.fillMaxWidth().height(300.dp).clip(RoundedCornerShape(16.dp)).background(RosePale), contentAlignment = Alignment.Center) { Icon(Icons.Default.PictureAsPdf, null, tint = RoseDark, modifier = Modifier.size(48.dp)) }
+                                    } else {
+                                        androidx.compose.foundation.lazy.grid.LazyVerticalGrid(columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(minSize = 105.dp), modifier = Modifier.fillMaxWidth().height(350.dp), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            items(pdfPages.size) { index ->
+                                                val isSelected = index in selectedPdfPages
+                                                Card(onClick = { if (isSelected) selectedPdfPages.remove(index) else selectedPdfPages.add(index); pdfSelectionText = formatPageRanges(selectedPdfPages.toList()) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = if (isSelected) RosePale else Color.White), border = androidx.compose.foundation.BorderStroke(if (isSelected) 2.dp else 1.dp, if (isSelected) RoseDark else Line)) {
+                                                    Column(Modifier.padding(6.dp)) { Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = isSelected, onCheckedChange = null); Text("${index + 1}", fontWeight = FontWeight.SemiBold) }; androidx.compose.foundation.Image(bitmap = pdfPages[index].asImageBitmap(), contentDescription = "Página ${index + 1}", modifier = Modifier.fillMaxWidth().heightIn(max = 145.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit) }
                                                 }
-                                                androidx.compose.foundation.Image(bitmap = pdfPages[index].asImageBitmap(), contentDescription = "Vista previa de página " + (index + 1), modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
                                             }
                                         }
+                                        Text("Tocá cualquier parte de una página para seleccionarla o quitarla.", fontSize = 11.sp, color = Muted)
                                     }
                                 }
-                                Text(selectedPdfPages.size.toString() + " de " + pdfPages.size + " páginas seleccionadas. Se imprimirán una debajo de otra.", fontSize = 11.sp, color = Muted)
-                                if (selectedPdfPages.isNotEmpty()) {
-                                    Text("Vista previa del documento resultante", fontWeight = FontWeight.SemiBold, color = Ink)
-                                    val combinedPreview = remember(selectedPdfPages.toList(), pdfPages) {
-                                        combineBitmaps(selectedPdfPages.sorted().map { pdfPages[it] })
-                                    }
-                                    combinedPreview?.let { bitmap ->
-                                        androidx.compose.foundation.Image(bitmap = bitmap.asImageBitmap(), contentDescription = "Vista previa de las páginas conservadas en orden", modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
+                                CardBlock {
+                                    FilledTonalIconButton(onClick = { pdfPicker.launch(arrayOf("application/pdf")) }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Add, contentDescription = "Elegir PDF") }
+                                    Text(if (selectedPdf == null) "Elegir PDF" else selectedPdf?.lastPathSegment ?: "PDF seleccionado", fontSize = 12.sp, color = Muted, maxLines = 2)
+                                    if (pdfPages.isNotEmpty() && !pdfLoading) {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            OutlinedButton(onClick = { selectedPdfPages.clear(); selectedPdfPages.addAll(pdfPages.indices); pdfSelectionText = formatPageRanges(selectedPdfPages.toList()) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp)) { Icon(Icons.Default.CheckCircle, null); Text("Todas", fontSize = 11.sp) }
+                                            OutlinedButton(onClick = { selectedPdfPages.clear(); pdfSelectionText = "" }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp)) { Icon(Icons.Default.Delete, null); Text("Ninguna", fontSize = 11.sp) }
+                                        }
+                                        OutlinedTextField(value = pdfSelectionText, onValueChange = { value -> pdfSelectionText = value; selectedPdfPages.clear(); selectedPdfPages.addAll(parsePageRanges(value, pdfPages.size)) }, label = { Text("Páginas") }, placeholder = { Text("1-2, 4-6") }, supportingText = { Text("Total: ${pdfPages.size} páginas") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                        Text("${selectedPdfPages.size} de ${pdfPages.size} seleccionadas", color = Muted, fontSize = 12.sp)
+                                        Button(onClick = { notice = if (selectedPdfPages.isEmpty()) "Seleccioná al menos una página." else runCatching { val combined = combineBitmaps(selectedPdfPages.sorted().map { pdfPages[it] }) ?: error("No se pudo preparar el documento."); UsbEscPosPrinter.printBitmap(context, combined, paperWidth, selected?.feedLines ?: 3) }.getOrElse { "No se pudo imprimir el PDF: " + (it.message ?: "error desconocido") } }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Print, null); Spacer(Modifier.width(8.dp)); Text("Imprimir páginas") }
                                     }
                                 }
                             }
-                            Button(onClick = {
-                                notice = if (pdfPages.isEmpty()) "Primero elegí un PDF válido." else if (selectedPdfPages.isEmpty()) "Seleccioná al menos una página." else runCatching {
-                                    val combined = combineBitmaps(selectedPdfPages.sorted().map { pdfPages[it] })
-                                        ?: error("No se pudo preparar el documento.")
-                                    UsbEscPosPrinter.printBitmap(context, combined, paperWidth, selected?.feedLines ?: 3)
-                                }.getOrElse { "No se pudo imprimir el PDF: " + (it.message ?: "error desconocido") }
-                            }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
-                                Icon(Icons.Default.Print, null); Spacer(Modifier.width(8.dp)); Text("Imprimir páginas seleccionadas")
+                        } else {
+                            CardBlock {
+                                Box(Modifier.fillMaxWidth().height(70.dp).clip(RoundedCornerShape(16.dp)).background(RosePale), contentAlignment = Alignment.Center) { if (pdfLoading) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) { CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp); Text("Cargando PDF…", color = RoseDark) } else Icon(Icons.Default.PictureAsPdf, null, tint = RoseDark, modifier = Modifier.size(36.dp)) }
+                                if (pdfLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                                Text(if (selectedPdf == null) "Ningún PDF seleccionado" else selectedPdf?.lastPathSegment ?: "PDF seleccionado", fontWeight = FontWeight.SemiBold, color = Ink)
+                                Button(onClick = { pdfPicker.launch(arrayOf("application/pdf")) }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Elegir PDF") }
+                                if (pdfPages.isNotEmpty() && !pdfLoading) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedButton(onClick = { selectedPdfPages.clear(); selectedPdfPages.addAll(pdfPages.indices); pdfSelectionText = formatPageRanges(selectedPdfPages.toList()) }, modifier = Modifier.weight(1f)) { Text("Seleccionar todas") }; OutlinedButton(onClick = { selectedPdfPages.clear(); pdfSelectionText = "" }, modifier = Modifier.weight(1f)) { Text("Deseleccionar") } }
+                                    OutlinedTextField(value = pdfSelectionText, onValueChange = { value -> pdfSelectionText = value; selectedPdfPages.clear(); selectedPdfPages.addAll(parsePageRanges(value, pdfPages.size)) }, label = { Text("Páginas seleccionadas") }, placeholder = { Text("Ej.: 1-2, 4-6") }, supportingText = { Text("Total: ${pdfPages.size} páginas") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                    androidx.compose.foundation.lazy.grid.LazyVerticalGrid(columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(minSize = 120.dp), modifier = Modifier.fillMaxWidth().height(360.dp), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { items(pdfPages.size) { index -> val isSelected = index in selectedPdfPages; Card(onClick = { if (isSelected) selectedPdfPages.remove(index) else selectedPdfPages.add(index); pdfSelectionText = formatPageRanges(selectedPdfPages.toList()) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = if (isSelected) RosePale else Color.White), border = androidx.compose.foundation.BorderStroke(if (isSelected) 2.dp else 1.dp, if (isSelected) RoseDark else Line)) { Column(Modifier.padding(8.dp)) { Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = isSelected, onCheckedChange = null); Text("${index + 1}", fontWeight = FontWeight.SemiBold) }; androidx.compose.foundation.Image(bitmap = pdfPages[index].asImageBitmap(), contentDescription = "Página ${index + 1}", modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit) } } } }
+                                    Button(onClick = { notice = if (selectedPdfPages.isEmpty()) "Seleccioná al menos una página." else runCatching { val combined = combineBitmaps(selectedPdfPages.sorted().map { pdfPages[it] }) ?: error("No se pudo preparar el documento."); UsbEscPosPrinter.printBitmap(context, combined, paperWidth, selected?.feedLines ?: 3) }.getOrElse { "No se pudo imprimir el PDF: " + (it.message ?: "error desconocido") } }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Print, null); Spacer(Modifier.width(8.dp)); Text("Imprimir páginas") }
+                                }
                             }
-                            Text("Las páginas seleccionadas se rasterizan en blanco y negro y se imprimen en orden, una debajo de otra.", fontSize = 11.sp, color = Muted)
                         }
                     }
                 }
