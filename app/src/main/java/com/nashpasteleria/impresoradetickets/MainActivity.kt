@@ -6,6 +6,9 @@ import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.Bundle
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -54,8 +57,8 @@ private val Line = Color(0xFFF0DDE2)
 data class TicketTemplate(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
-    val content: String = "NASH Pastelería & Café\n--------------------------------\nProducto       Cant.     Precio\n--------------------------------\nGracias por tu compra!",
-    val paperWidth: Int = 80,
+    val content: String = "Nombre del producto\n.\n" + SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date()),
+    val paperWidth: Int = 58,
     val feedLines: Int = 3,
     val cutAfterPrint: Boolean = true
 )
@@ -93,7 +96,7 @@ private fun TicketApp(context: Context) {
                         id = o.optString("id", UUID.randomUUID().toString()),
                         name = o.optString("name", "Plantilla"),
                         content = o.optString("content", ""),
-                        paperWidth = o.optInt("paperWidth", 80),
+                        paperWidth = o.optInt("paperWidth", 58),
                         feedLines = o.optInt("feedLines", 3),
                         cutAfterPrint = o.optBoolean("cutAfterPrint", true)
                     ))
@@ -108,6 +111,7 @@ private fun TicketApp(context: Context) {
     var deleteCandidate by remember { mutableStateOf<TicketTemplate?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
     var activeTab by remember { mutableStateOf(AppTab.DESIGN) }
+    var paperWidth by remember { mutableIntStateOf(prefs.getInt("paper_width", 58).coerceIn(40, 120)) }
     var selectedImage by remember { mutableStateOf<Uri?>(null) }
     var selectedPdf by remember { mutableStateOf<Uri?>(null) }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { selectedImage = it }
@@ -171,54 +175,32 @@ private fun TicketApp(context: Context) {
         ) {
             when (activeTab) {
                 AppTab.DESIGN -> {
-                    item { WelcomeCard() }
-                    item { SectionHeading("Tu diseño", "Elegí una plantilla y prepará el ticket") }
+                    item { SectionHeading("Diseñá tu ticket", "Tocá una celda para seleccionarla y editá su contenido") }
                     item {
                         CardBlock {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(selected?.name ?: "Sin plantilla", fontWeight = FontWeight.SemiBold, color = Ink)
-                                    Text("${selected?.paperWidth ?: 80} mm · ${selected?.content?.lines()?.size ?: 0} líneas", color = Muted, fontSize = 12.sp)
-                                }
-                                OutlinedButton(onClick = { activeTab = AppTab.TEMPLATES }, shape = RoundedCornerShape(13.dp)) { Text("Cambiar") }
-                            }
-                            Spacer(Modifier.height(4.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                WidthChip("58 mm", selected?.paperWidth == 58) {
-                                    selected?.let { updateTemplate(templates, it.copy(paperWidth = 58), ::persist) }
-                                }
-                                WidthChip("80 mm", selected?.paperWidth != 58) {
-                                    selected?.let { updateTemplate(templates, it.copy(paperWidth = 80), ::persist) }
-                                }
-                                Spacer(Modifier.weight(1f))
-                                OutlinedButton(onClick = { editing = selected; showEditor = true }, shape = RoundedCornerShape(13.dp)) {
-                                    Icon(Icons.Default.Edit, null, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(5.dp)); Text("Editar")
-                                }
+                            OutlinedTextField(
+                                value = selected?.name ?: "",
+                                onValueChange = { value -> selected?.let { updateTemplate(templates, it.copy(name = value), ::persist) } },
+                                label = { Text("Nombre de la plantilla") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            selected?.let { template ->
+                                TicketTableEditor(template = template, onContentChange = { content ->
+                                    updateTemplate(templates, template.copy(content = content), ::persist)
+                                })
                             }
                         }
                     }
-                    item { SectionHeading("Vista previa", "Así se verá el contenido impreso") }
                     item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth().border(1.dp, Line, RoundedCornerShape(20.dp)),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(20.dp)
-                        ) {
-                            Column(Modifier.fillMaxWidth().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("VISTA PREVIA DEL TICKET", fontSize = 10.sp, color = Muted, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-                                Spacer(Modifier.height(12.dp))
-                                Box(Modifier.fillMaxWidth().background(Color(0xFFFFFCFC), RoundedCornerShape(12.dp)).padding(14.dp)) {
-                                    TicketContentPreview(selected?.content ?: "Creá una plantilla para empezar")
-                                }
-                                Spacer(Modifier.height(8.dp))
-                                Text("Papel térmico · ${selected?.paperWidth ?: 80} mm", fontSize = 11.sp, color = Muted)
-                            }
+                        CardBlock {
+                            Text("Vista previa · papel de ${paperWidth} mm", fontWeight = FontWeight.SemiBold, color = Ink)
+                            TicketContentPreview(selected?.content ?: "")
                         }
                     }
                     item {
                         Button(
-                            onClick = { notice = selected?.let { UsbEscPosPrinter.print(context, it) } ?: "Primero creá o seleccioná una plantilla." },
+                            onClick = { notice = selected?.let { UsbEscPosPrinter.print(context, it.copy(paperWidth = paperWidth)) } ?: "Primero creá o seleccioná una plantilla." },
                             modifier = Modifier.fillMaxWidth().height(54.dp),
                             shape = RoundedCornerShape(17.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = RoseDark)
