@@ -140,11 +140,13 @@ private fun TicketApp(context: Context) {
     var selectedImage by remember { mutableStateOf<Uri?>(null) }
     var selectedPdf by remember { mutableStateOf<Uri?>(null) }
     var imageRotation by remember { mutableIntStateOf(0) }
+    var imageBrightness by remember { mutableFloatStateOf(0f) }
+    var imageContrast by remember { mutableFloatStateOf(100f) }
     var imageLoading by remember { mutableStateOf(false) }
     var pdfLoading by remember { mutableStateOf(false) }
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val previewHeight = (configuration.screenHeightDp.dp - if (isLandscape) 370.dp else 430.dp).coerceAtLeast(140.dp)
+    val previewHeight = (configuration.screenHeightDp.dp - if (isLandscape) 470.dp else 520.dp).coerceAtLeast(120.dp)
     var imagePreview by remember { mutableStateOf<Bitmap?>(null) }
     var pdfPages by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
     val selectedPdfPages = remember { mutableStateListOf<Int>() }
@@ -152,12 +154,12 @@ private fun TicketApp(context: Context) {
     val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) selectedPdf = uri }
     val selected = templates.firstOrNull { it.id == selectedId } ?: templates.firstOrNull()
 
-    LaunchedEffect(selectedImage, imageRotation) {
+    LaunchedEffect(selectedImage, imageRotation, imageBrightness, imageContrast) {
         val uri = selectedImage
         if (uri == null) { imagePreview = null; imageLoading = false } else {
             imageLoading = true
             imagePreview = null
-            try { imagePreview = withContext(Dispatchers.IO) { loadMonochromeImage(context, uri, imageRotation) } }
+            try { imagePreview = withContext(Dispatchers.IO) { loadMonochromeImage(context, uri, imageRotation, imageBrightness, imageContrast) } }
             catch (_: Exception) { notice = "No se pudo cargar la imagen. Probá con otro archivo."; imagePreview = null }
             finally { imageLoading = false }
         }
@@ -235,7 +237,7 @@ private fun TicketApp(context: Context) {
         ) {
             when (activeTab) {
                 AppTab.DESIGN -> {
-                    item { SectionHeading("Diseñador de tickets", "Editá cada celda y guardá el diseño como plantilla") }
+                    item { Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { SectionHeading("Diseñador de tickets", "Editá cada celda y guardá el diseño como plantilla") } }
                     item {
                         Card(
                             Modifier.fillMaxWidth(),
@@ -313,10 +315,17 @@ private fun TicketApp(context: Context) {
                                         IconButton(onClick = { imageRotation = (imageRotation + 90) % 360 }, enabled = selectedImage != null) { Icon(Icons.Default.RotateRight, contentDescription = "Girar a la derecha") }
                                         Text("${imageRotation}°", color = Muted)
                                     }
+                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text("Brillo · ${imageBrightness.toInt()}", fontSize = 12.sp, color = Ink)
+                                        Slider(value = imageBrightness, onValueChange = { imageBrightness = it }, valueRange = -100f..100f, enabled = selectedImage != null)
+                                        Text("Contraste · ${imageContrast.toInt()}%", fontSize = 12.sp, color = Ink)
+                                        Slider(value = imageContrast, onValueChange = { imageContrast = it }, valueRange = 0f..200f, enabled = selectedImage != null)
+                                        TextButton(onClick = { imageBrightness = 0f; imageContrast = 100f }, enabled = selectedImage != null) { Text("Restablecer ajustes") }
+                                    }
                                     Button(onClick = {
                                         val uri = selectedImage
                                         notice = if (uri == null) "Primero elegí una imagen." else runCatching {
-                                            val bitmap = imagePreview ?: loadMonochromeImage(context, uri, imageRotation)
+                                            val bitmap = imagePreview ?: loadMonochromeImage(context, uri, imageRotation, imageBrightness, imageContrast)
                                             UsbEscPosPrinter.printBitmap(context, bitmap, paperWidth, selected?.feedLines ?: 3)
                                         }.getOrElse { "No se pudo preparar la imagen: " + (it.message ?: "error desconocido") }
                                     }, enabled = selectedImage != null && !imageLoading && imagePreview != null, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Print, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Imprimir") }
@@ -333,6 +342,13 @@ private fun TicketApp(context: Context) {
                                     }
                                 }
                                 Text(selectedImage?.lastPathSegment ?: "Todavía no elegiste una imagen", fontSize = 12.sp, color = Muted)
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text("Brillo · ${imageBrightness.toInt()}", fontSize = 12.sp, color = Ink)
+                                    Slider(value = imageBrightness, onValueChange = { imageBrightness = it }, valueRange = -100f..100f, enabled = selectedImage != null)
+                                    Text("Contraste · ${imageContrast.toInt()}%", fontSize = 12.sp, color = Ink)
+                                    Slider(value = imageContrast, onValueChange = { imageContrast = it }, valueRange = 0f..200f, enabled = selectedImage != null)
+                                    TextButton(onClick = { imageBrightness = 0f; imageContrast = 100f }, enabled = selectedImage != null) { Text("Restablecer ajustes") }
+                                }
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     FilledTonalIconButton(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Add, contentDescription = "Elegir imagen") }
                                     Button(onClick = { val uri = selectedImage; notice = if (uri == null) "Primero elegí una imagen." else runCatching { UsbEscPosPrinter.printBitmap(context, imagePreview ?: loadMonochromeImage(context, uri, imageRotation), paperWidth, selected?.feedLines ?: 3) }.getOrElse { "No se pudo preparar la imagen: " + (it.message ?: "error desconocido") } }, enabled = selectedImage != null && !imageLoading && imagePreview != null, modifier = Modifier.weight(3f)) { Icon(Icons.Default.Print, null); Spacer(Modifier.width(8.dp)); Text("Imprimir") }
@@ -557,7 +573,7 @@ private fun updateTemplate(templates: MutableList<TicketTemplate>, updated: Tick
     if (index >= 0) { templates[index] = updated; persist() }
 }
 
-private fun loadMonochromeImage(context: Context, uri: Uri, rotation: Int): Bitmap {
+private fun loadMonochromeImage(context: Context, uri: Uri, rotation: Int, brightness: Float = 0f, contrast: Float = 100f): Bitmap {
     val source = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
         ?: error("No se pudo abrir la imagen.")
     val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
@@ -565,8 +581,10 @@ private fun loadMonochromeImage(context: Context, uri: Uri, rotation: Int): Bitm
     val result = Bitmap.createBitmap(rotated.width, rotated.height, Bitmap.Config.ARGB_8888)
     for (y in 0 until rotated.height) for (x in 0 until rotated.width) {
         val p = rotated.getPixel(x, y)
-        val l = (android.graphics.Color.red(p) * 299 + android.graphics.Color.green(p) * 587 + android.graphics.Color.blue(p) * 114) / 1000
-        result.setPixel(x, y, if (l < 160) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+        val rawLuminance = (android.graphics.Color.red(p) * 299 + android.graphics.Color.green(p) * 587 + android.graphics.Color.blue(p) * 114) / 1000f
+        val contrastFactor = (contrast.coerceIn(0f, 200f) / 100f)
+        val adjusted = (((rawLuminance - 127.5f) * contrastFactor) + 127.5f + brightness.coerceIn(-100f, 100f) * 1.8f).toInt().coerceIn(0, 255)
+        result.setPixel(x, y, if (adjusted < 160) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
     }
     return result
 }
