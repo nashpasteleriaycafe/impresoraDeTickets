@@ -144,7 +144,7 @@ private fun TicketApp(context: Context) {
     var pdfLoading by remember { mutableStateOf(false) }
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val previewHeight = (configuration.screenHeightDp.dp - if (isLandscape) 190.dp else 245.dp).coerceAtLeast(220.dp)
+    val previewHeight = (configuration.screenHeightDp.dp - if (isLandscape) 300.dp else 360.dp).coerceAtLeast(180.dp)
     var imagePreview by remember { mutableStateOf<Bitmap?>(null) }
     var pdfPages by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
     val selectedPdfPages = remember { mutableStateListOf<Int>() }
