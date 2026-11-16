@@ -144,7 +144,7 @@ private fun TicketApp(context: Context) {
     var pdfLoading by remember { mutableStateOf(false) }
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val previewHeight = (configuration.screenHeightDp.dp - if (isLandscape) 300.dp else 360.dp).coerceAtLeast(180.dp)
+    val previewHeight = (configuration.screenHeightDp.dp - if (isLandscape) 370.dp else 430.dp).coerceAtLeast(140.dp)
     var imagePreview by remember { mutableStateOf<Bitmap?>(null) }
     var pdfPages by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
     val selectedPdfPages = remember { mutableStateListOf<Int>() }
@@ -629,8 +629,17 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
     }
     fun toggleCell(row: Int, col: Int) {
         val key = row to col
-        if (selectedCells.isEmpty()) selectedCells.add(key)
-        else if (key in selectedCells) selectedCells.remove(key) else selectedCells.add(key)
+        if (key in selectedCells) selectedCells.remove(key) else selectedCells.add(key)
+    }
+    fun toggleRow(row: Int) {
+        val cells = (0 until columnCount).map { row to it }
+        if (cells.all { it in selectedCells }) selectedCells.removeAll(cells.toSet())
+        else { selectedCells.removeAll(cells.toSet()); selectedCells.addAll(cells) }
+    }
+    fun toggleColumn(col: Int) {
+        val cells = (0 until grid.size).map { it to col }
+        if (cells.all { it in selectedCells }) selectedCells.removeAll(cells.toSet())
+        else { selectedCells.removeAll(cells.toSet()); selectedCells.addAll(cells) }
     }
     val columnCount = grid.maxOfOrNull { it.size } ?: 1
     val selectedRows = (0 until grid.size).filter { row -> (0 until columnCount).all { (row to it) in selectedCells } }
@@ -683,8 +692,7 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
             val b = if (first == topLeft) next[second.first][second.second] else next[first.first][first.second]
             next[topLeft.first][topLeft.second] = listOf(a, b).filter { it.isNotBlank() }.joinToString(" ")
             if (horizontalPair) {
-                val row = next[topLeft.first]
-                row.removeAt(maxOf(first.second, second.second))
+                next[first.first][maxOf(first.second, second.second)] = ""
             } else {
                 next[maxOf(first.first, second.first)][first.second] = ""
             }
@@ -693,8 +701,24 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
     }
     Text("Tocá un elemento para seleccionarlo; tocá dos veces su texto para editarlo. Usá «Listo» al terminar.", fontSize = 11.sp, color = Muted)
     Column(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.width(42.dp).height(34.dp), contentAlignment = Alignment.Center) { Text("Fila", fontSize = 10.sp, color = Muted) }
+            repeat(columnCount) { colIndex ->
+                val allSelected = (0 until grid.size).all { (it to colIndex) in selectedCells }
+                OutlinedButton(onClick = { toggleColumn(colIndex) },
+                    modifier = Modifier.width((LocalConfiguration.current.screenWidthDp.dp - 16.dp - 42.dp - 4.dp * columnCount.coerceAtLeast(1)) / columnCount.coerceAtLeast(1)).height(34.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp),
+                    colors = if (allSelected) ButtonDefaults.outlinedButtonColors(containerColor = RosePale, contentColor = RoseDark) else ButtonDefaults.outlinedButtonColors()
+                ) { Text(if (allSelected) "✓ ${colIndex + 1}" else "Col. ${colIndex + 1}", fontSize = 10.sp, maxLines = 1) }
+            }
+        }
         grid.forEachIndexed { rowIndex, row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                val rowAllSelected = (0 until columnCount).all { (rowIndex to it) in selectedCells }
+                OutlinedButton(onClick = { toggleRow(rowIndex) }, modifier = Modifier.width(42.dp).heightIn(min = 54.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp),
+                    colors = if (rowAllSelected) ButtonDefaults.outlinedButtonColors(containerColor = RosePale, contentColor = RoseDark) else ButtonDefaults.outlinedButtonColors()
+                ) { Text(if (rowAllSelected) "✓ ${rowIndex + 1}" else "${rowIndex + 1}", fontSize = 10.sp) }
                 row.forEachIndexed { colIndex, text ->
                     val selected = (rowIndex to colIndex) in selectedCells
                     var editValue by remember(template.id, rowIndex, colIndex, text) {
@@ -702,7 +726,7 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
                     }
                     val cellFocusRequester = remember(template.id, rowIndex, colIndex) { FocusRequester() }
                     Column(
-                        Modifier.width((LocalConfiguration.current.screenWidthDp.dp - 16.dp - 4.dp * (columnCount - 1).coerceAtLeast(0)) / columnCount.coerceAtLeast(1))
+                        Modifier.width((LocalConfiguration.current.screenWidthDp.dp - 16.dp - 42.dp - 4.dp * columnCount.coerceAtLeast(1)) / columnCount.coerceAtLeast(1))
                             .border(if (selected) 2.dp else 1.dp, if (selected) RoseDark else Line, RoundedCornerShape(8.dp))
                             .background(if (selected) RosePale else Color.White, RoundedCornerShape(8.dp))
                             .then(
