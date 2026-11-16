@@ -690,7 +690,7 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
             publish(next); selectedCells.clear()
         }, modifier = Modifier.fillMaxWidth()) { Text("Combinar celdas seleccionadas") }
     }
-    Text("Mantené presionada una celda para seleccionarla. Tocá otras celdas para sumar o quitar selección.", fontSize = 11.sp, color = Muted)
+    Text("Mantené presionadas las celdas para sumar o quitar elementos de la selección.", fontSize = 11.sp, color = Muted)
     Column(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         grid.forEachIndexed { rowIndex, row ->
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
