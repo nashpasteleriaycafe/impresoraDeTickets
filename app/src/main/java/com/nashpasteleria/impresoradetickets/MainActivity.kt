@@ -142,7 +142,9 @@ private fun TicketApp(context: Context) {
     var imageRotation by remember { mutableIntStateOf(0) }
     var imageLoading by remember { mutableStateOf(false) }
     var pdfLoading by remember { mutableStateOf(false) }
-    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val previewHeight = (configuration.screenHeightDp.dp - if (isLandscape) 190.dp else 245.dp).coerceAtLeast(220.dp)
     var imagePreview by remember { mutableStateOf<Bitmap?>(null) }
     var pdfPages by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
     val selectedPdfPages = remember { mutableStateListOf<Int>() }
@@ -227,7 +229,7 @@ private fun TicketApp(context: Context) {
         }
     ) { insets ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(insets).padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxSize().padding(insets).padding(horizontal = if (activeTab == AppTab.DESIGN) 0.dp else 16.dp),
             contentPadding = PaddingValues(top = 12.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -235,19 +237,29 @@ private fun TicketApp(context: Context) {
                 AppTab.DESIGN -> {
                     item { SectionHeading("Diseñador de tickets", "Editá cada celda y guardá el diseño como plantilla") }
                     item {
-                        CardBlock {
-                            val template = selected ?: templates.first()
-                            Text("Tabla editable", fontWeight = FontWeight.SemiBold, color = Ink)
-                            key(template.id) {
-                                TicketTableEditor(template = template, onContentChange = { content ->
-                                    updateTemplate(templates, template.copy(content = content), ::persist)
-                                })
-                            }
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                                FilledIconButton(onClick = {
-                                    newTemplateName = ""
-                                    showSaveTemplateDialog = true
-                                }) { Icon(Icons.Default.Save, contentDescription = "Guardar como nueva plantilla") }
+                        Card(
+                            Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                val template = selected ?: templates.first()
+                                Text("Tabla editable", fontWeight = FontWeight.SemiBold, color = Ink)
+                                key(template.id) {
+                                    TicketTableEditor(template = template, onContentChange = { content ->
+                                        updateTemplate(templates, template.copy(content = content), ::persist)
+                                    })
+                                }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+                                    FilledTonalIconButton(onClick = {
+                                        notice = UsbEscPosPrinter.print(context, template.copy(paperWidth = paperWidth))
+                                    }) { Icon(Icons.Default.Print, contentDescription = "Imprimir ticket") }
+                                    FilledIconButton(onClick = {
+                                        newTemplateName = ""
+                                        showSaveTemplateDialog = true
+                                    }) { Icon(Icons.Default.Save, contentDescription = "Guardar como nueva plantilla") }
+                                }
                             }
                         }
                     }
@@ -283,10 +295,10 @@ private fun TicketApp(context: Context) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
                                 CardBlock(modifier = Modifier.weight(1.15f)) {
                                     Text("Previsualización", fontWeight = FontWeight.SemiBold, color = Ink)
-                                    Box(Modifier.fillMaxWidth().height(340.dp).clip(RoundedCornerShape(16.dp)).background(RosePale).verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
+                                    Box(Modifier.fillMaxWidth().height(previewHeight).clip(RoundedCornerShape(16.dp)).background(RosePale), contentAlignment = Alignment.Center) {
                                         when {
                                             imageLoading -> Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(20.dp)) { CircularProgressIndicator(); Spacer(Modifier.height(8.dp)); Text("Cargando imagen…", color = RoseDark) }
-                                            imagePreview != null -> androidx.compose.foundation.Image(bitmap = imagePreview!!.asImageBitmap(), contentDescription = "Vista previa de imagen", modifier = Modifier.fillMaxWidth().padding(8.dp), contentScale = androidx.compose.ui.layout.ContentScale.FillWidth)
+                                            imagePreview != null -> androidx.compose.foundation.Image(bitmap = imagePreview!!.asImageBitmap(), contentDescription = "Vista previa de imagen", modifier = Modifier.fillMaxSize().padding(8.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
                                             else -> Icon(Icons.Default.Image, contentDescription = "Sin imagen", tint = RoseDark, modifier = Modifier.padding(28.dp).size(48.dp))
                                         }
                                     }
@@ -313,7 +325,7 @@ private fun TicketApp(context: Context) {
                             }
                         } else {
                             CardBlock {
-                                Box(Modifier.fillMaxWidth().heightIn(min = 110.dp, max = 320.dp).clip(RoundedCornerShape(16.dp)).background(RosePale).verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
+                                Box(Modifier.fillMaxWidth().height(previewHeight).clip(RoundedCornerShape(16.dp)).background(RosePale), contentAlignment = Alignment.Center) {
                                     when {
                                         imageLoading -> Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(20.dp)) { CircularProgressIndicator(); Text("Cargando imagen…", color = RoseDark) }
                                         imagePreview != null -> androidx.compose.foundation.Image(bitmap = imagePreview!!.asImageBitmap(), contentDescription = "Vista previa de imagen", modifier = Modifier.fillMaxWidth().padding(8.dp), contentScale = androidx.compose.ui.layout.ContentScale.FillWidth)
@@ -337,12 +349,12 @@ private fun TicketApp(context: Context) {
                                 CardBlock(modifier = Modifier.weight(1.2f)) {
                                     Text("Previsualización de páginas", fontWeight = FontWeight.SemiBold, color = Ink)
                                     if (pdfLoading) {
-                                        Box(Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally) { CircularProgressIndicator(); Spacer(Modifier.height(12.dp)); Text("Cargando PDF…", color = RoseDark) } }
+                                        Box(Modifier.fillMaxWidth().height(previewHeight), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally) { CircularProgressIndicator(); Spacer(Modifier.height(12.dp)); Text("Cargando PDF…", color = RoseDark) } }
                                         LinearProgressIndicator(Modifier.fillMaxWidth())
                                     } else if (pdfPages.isEmpty()) {
-                                        Box(Modifier.fillMaxWidth().height(300.dp).clip(RoundedCornerShape(16.dp)).background(RosePale), contentAlignment = Alignment.Center) { Icon(Icons.Default.PictureAsPdf, null, tint = RoseDark, modifier = Modifier.size(48.dp)) }
+                                        Box(Modifier.fillMaxWidth().height(previewHeight).clip(RoundedCornerShape(16.dp)).background(RosePale), contentAlignment = Alignment.Center) { Icon(Icons.Default.PictureAsPdf, null, tint = RoseDark, modifier = Modifier.size(48.dp)) }
                                     } else {
-                                        androidx.compose.foundation.lazy.grid.LazyVerticalGrid(columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(minSize = 105.dp), modifier = Modifier.fillMaxWidth().height(350.dp), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        androidx.compose.foundation.lazy.grid.LazyVerticalGrid(columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(minSize = 105.dp), modifier = Modifier.fillMaxWidth().height(previewHeight), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             items(pdfPages.size) { index ->
                                                 val isSelected = index in selectedPdfPages
                                                 Card(onClick = { if (isSelected) selectedPdfPages.remove(index) else selectedPdfPages.add(index); pdfSelectionText = formatPageRanges(selectedPdfPages.toList()) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = if (isSelected) RosePale else Color.White), border = androidx.compose.foundation.BorderStroke(if (isSelected) 2.dp else 1.dp, if (isSelected) RoseDark else Line)) {
@@ -369,14 +381,14 @@ private fun TicketApp(context: Context) {
                             }
                         } else {
                             CardBlock {
-                                Box(Modifier.fillMaxWidth().height(70.dp).clip(RoundedCornerShape(16.dp)).background(RosePale), contentAlignment = Alignment.Center) { if (pdfLoading) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) { CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp); Text("Cargando PDF…", color = RoseDark) } else Icon(Icons.Default.PictureAsPdf, null, tint = RoseDark, modifier = Modifier.size(36.dp)) }
+                                Box(Modifier.fillMaxWidth().height(previewHeight).clip(RoundedCornerShape(16.dp)).background(RosePale), contentAlignment = Alignment.Center) { if (pdfLoading) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) { CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp); Text("Cargando PDF…", color = RoseDark) } else Icon(Icons.Default.PictureAsPdf, null, tint = RoseDark, modifier = Modifier.size(36.dp)) }
                                 if (pdfLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
                                 Text(if (selectedPdf == null) "Ningún PDF seleccionado" else selectedPdf?.lastPathSegment ?: "PDF seleccionado", fontWeight = FontWeight.SemiBold, color = Ink)
                                 Button(onClick = { pdfPicker.launch(arrayOf("application/pdf")) }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Elegir PDF") }
                                 if (pdfPages.isNotEmpty() && !pdfLoading) {
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedButton(onClick = { selectedPdfPages.clear(); selectedPdfPages.addAll(pdfPages.indices); pdfSelectionText = formatPageRanges(selectedPdfPages.toList()) }, modifier = Modifier.weight(1f)) { Text("Seleccionar todas") }; OutlinedButton(onClick = { selectedPdfPages.clear(); pdfSelectionText = "" }, modifier = Modifier.weight(1f)) { Text("Deseleccionar") } }
                                     OutlinedTextField(value = pdfSelectionText, onValueChange = { value -> pdfSelectionText = value; selectedPdfPages.clear(); selectedPdfPages.addAll(parsePageRanges(value, pdfPages.size)) }, label = { Text("Páginas seleccionadas") }, placeholder = { Text("Ej.: 1-2, 4-6") }, supportingText = { Text("Total: ${pdfPages.size} páginas") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                                    androidx.compose.foundation.lazy.grid.LazyVerticalGrid(columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(minSize = 120.dp), modifier = Modifier.fillMaxWidth().height(360.dp), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { items(pdfPages.size) { index -> val isSelected = index in selectedPdfPages; Card(onClick = { if (isSelected) selectedPdfPages.remove(index) else selectedPdfPages.add(index); pdfSelectionText = formatPageRanges(selectedPdfPages.toList()) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = if (isSelected) RosePale else Color.White), border = androidx.compose.foundation.BorderStroke(if (isSelected) 2.dp else 1.dp, if (isSelected) RoseDark else Line)) { Column(Modifier.padding(8.dp)) { Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = isSelected, onCheckedChange = null); Text("${index + 1}", fontWeight = FontWeight.SemiBold) }; androidx.compose.foundation.Image(bitmap = pdfPages[index].asImageBitmap(), contentDescription = "Página ${index + 1}", modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit) } } } }
+                                    androidx.compose.foundation.lazy.grid.LazyVerticalGrid(columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(minSize = 120.dp), modifier = Modifier.fillMaxWidth().height(previewHeight), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { items(pdfPages.size) { index -> val isSelected = index in selectedPdfPages; Card(onClick = { if (isSelected) selectedPdfPages.remove(index) else selectedPdfPages.add(index); pdfSelectionText = formatPageRanges(selectedPdfPages.toList()) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = if (isSelected) RosePale else Color.White), border = androidx.compose.foundation.BorderStroke(if (isSelected) 2.dp else 1.dp, if (isSelected) RoseDark else Line)) { Column(Modifier.padding(8.dp)) { Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = isSelected, onCheckedChange = null); Text("${index + 1}", fontWeight = FontWeight.SemiBold) }; androidx.compose.foundation.Image(bitmap = pdfPages[index].asImageBitmap(), contentDescription = "Página ${index + 1}", modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit) } } } }
                                     Button(onClick = { notice = if (selectedPdfPages.isEmpty()) "Seleccioná al menos una página." else runCatching { val combined = combineBitmaps(selectedPdfPages.sorted().map { pdfPages[it] }) ?: error("No se pudo preparar el documento."); UsbEscPosPrinter.printBitmap(context, combined, paperWidth, selected?.feedLines ?: 3) }.getOrElse { "No se pudo imprimir el PDF: " + (it.message ?: "error desconocido") } }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Print, null); Spacer(Modifier.width(8.dp)); Text("Imprimir páginas") }
                                 }
                             }
@@ -689,10 +701,12 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
                     }
                     val cellFocusRequester = remember(template.id, rowIndex, colIndex) { FocusRequester() }
                     Column(
-                        Modifier.width(150.dp)
+                        Modifier.width((LocalConfiguration.current.screenWidthDp.dp - 32.dp) / columnCount.coerceAtLeast(1))
                             .border(if (selected) 2.dp else 1.dp, if (selected) RoseDark else Line, RoundedCornerShape(8.dp))
                             .background(if (selected) RosePale else Color.White, RoundedCornerShape(8.dp))
-                            
+                            .pointerInput(rowIndex, colIndex) {
+                                detectTapGestures(onLongPress = { toggleCell(rowIndex, colIndex) })
+                            }
                             .padding(5.dp)
                     ) {
                         androidx.compose.foundation.text.BasicTextField(
