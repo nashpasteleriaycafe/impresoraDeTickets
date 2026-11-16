@@ -616,6 +616,7 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
         value.split("\n").map { it.split("\t") }.ifEmpty { listOf(listOf("")) }
     var grid by remember(template.id) { mutableStateOf(parse(template.content)) }
     val selectedCells = remember(template.id) { mutableStateListOf<Pair<Int, Int>>() }
+    var editingCell by remember(template.id) { mutableStateOf<Pair<Int, Int>?>(null) }
     var showSplitDialog by remember { mutableStateOf(false) }
     var splitRows by remember { mutableStateOf("2") }
     var splitColumns by remember { mutableStateOf("2") }
@@ -690,7 +691,7 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
             publish(next); selectedCells.clear()
         }, modifier = Modifier.fillMaxWidth()) { Text("Combinar celdas seleccionadas") }
     }
-    Text("Mantené presionadas las celdas para sumar o quitar elementos de la selección.", fontSize = 11.sp, color = Muted)
+    Text("Tocá un elemento para seleccionarlo; tocá dos veces su texto para editarlo. Usá «Listo» al terminar.", fontSize = 11.sp, color = Muted)
     Column(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         grid.forEachIndexed { rowIndex, row ->
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -701,36 +702,60 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
                     }
                     val cellFocusRequester = remember(template.id, rowIndex, colIndex) { FocusRequester() }
                     Column(
-                        Modifier.width((LocalConfiguration.current.screenWidthDp.dp - 32.dp) / columnCount.coerceAtLeast(1))
+                        Modifier.width((LocalConfiguration.current.screenWidthDp.dp - 16.dp - 4.dp * (columnCount - 1).coerceAtLeast(0)) / columnCount.coerceAtLeast(1))
                             .border(if (selected) 2.dp else 1.dp, if (selected) RoseDark else Line, RoundedCornerShape(8.dp))
                             .background(if (selected) RosePale else Color.White, RoundedCornerShape(8.dp))
-                            .pointerInput(rowIndex, colIndex) {
-                                detectTapGestures(onLongPress = { toggleCell(rowIndex, colIndex) })
-                            }
+                            .then(
+                                if (editingCell != (rowIndex to colIndex)) Modifier.pointerInput(rowIndex, colIndex) {
+                                    detectTapGestures(
+                                        onTap = { toggleCell(rowIndex, colIndex) },
+                                        onDoubleTap = {
+                                            if ((rowIndex to colIndex) !in selectedCells) selectedCells.add(rowIndex to colIndex)
+                                            editingCell = rowIndex to colIndex
+                                        }
+                                    )
+                                } else Modifier
+                            )
                             .padding(5.dp)
                     ) {
-                        androidx.compose.foundation.text.BasicTextField(
-                            value = editValue,
-                            onValueChange = { newValue ->
-                                editValue = newValue
-                                val next = grid.map { it.toMutableList() }.toMutableList()
-                                next[rowIndex][colIndex] = newValue.text
-                                publish(next)
-                            },
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp).focusRequester(cellFocusRequester),
-                            textStyle = androidx.compose.ui.text.TextStyle(
-                                color = Ink,
-                                fontSize = (56f - text.length * 1.4f).coerceIn(12f, 52f).sp,
-                                fontWeight = if (rowIndex == 0) FontWeight.SemiBold else FontWeight.Normal,
-                                textAlign = TextAlign.Center
-                            ),
-                            decorationBox = { inner ->
-                                Box(Modifier.fillMaxWidth().heightIn(min = 44.dp), contentAlignment = Alignment.Center) {
-                                    if (editValue.text.isEmpty()) Text("Escribí aquí", color = Muted, fontSize = 11.sp)
-                                    inner()
+                        LaunchedEffect(editingCell) {
+                            if (editingCell == (rowIndex to colIndex)) cellFocusRequester.requestFocus()
+                        }
+                        if (editingCell == (rowIndex to colIndex)) {
+                            androidx.compose.foundation.text.BasicTextField(
+                                value = editValue,
+                                onValueChange = { newValue ->
+                                    editValue = newValue
+                                    val next = grid.map { it.toMutableList() }.toMutableList()
+                                    next[rowIndex][colIndex] = newValue.text
+                                    publish(next)
+                                },
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp).focusRequester(cellFocusRequester),
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    color = Ink,
+                                    fontSize = (56f - text.length * 1.4f).coerceIn(12f, 52f).sp,
+                                    fontWeight = if (rowIndex == 0) FontWeight.SemiBold else FontWeight.Normal,
+                                    textAlign = TextAlign.Center
+                                ),
+                                decorationBox = { inner ->
+                                    Box(Modifier.fillMaxWidth().heightIn(min = 44.dp), contentAlignment = Alignment.Center) {
+                                        if (editValue.text.isEmpty()) Text("Escribí aquí", color = Muted, fontSize = 11.sp)
+                                        inner()
+                                    }
                                 }
+                            )
+                            TextButton(onClick = { editingCell = null }, modifier = Modifier.align(Alignment.End)) { Text("Listo", fontSize = 11.sp) }
+                        } else {
+                            Box(Modifier.fillMaxWidth().heightIn(min = 54.dp), contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = text.ifEmpty { "Tocá dos veces para editar" },
+                                    color = if (text.isEmpty()) Muted else Ink,
+                                    fontSize = (56f - text.length * 1.4f).coerceIn(12f, 52f).sp,
+                                    fontWeight = if (rowIndex == 0) FontWeight.SemiBold else FontWeight.Normal,
+                                    textAlign = TextAlign.Center
+                                )
                             }
-                        )
+                        }
                     }
                 }
             }
