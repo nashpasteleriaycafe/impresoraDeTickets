@@ -620,6 +620,7 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
     var showSplitDialog by remember { mutableStateOf(false) }
     var splitRows by remember { mutableStateOf("2") }
     var splitColumns by remember { mutableStateOf("2") }
+    val columnCount = grid.maxOfOrNull { it.size } ?: 1
 
     fun publish(next: List<List<String>>) {
         val count = next.maxOfOrNull { it.size } ?: 1
@@ -641,7 +642,6 @@ private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String
         if (cells.all { it in selectedCells }) selectedCells.removeAll(cells.toSet())
         else { selectedCells.removeAll(cells.toSet()); selectedCells.addAll(cells) }
     }
-    val columnCount = grid.maxOfOrNull { it.size } ?: 1
     val selectedRows = (0 until grid.size).filter { row -> (0 until columnCount).all { (row to it) in selectedCells } }
     val selectedColumns = (0 until columnCount).filter { col -> (0 until grid.size).all { (it to col) in selectedCells } }
     val horizontalPair = selectedCells.size == 2 && selectedCells[0].first == selectedCells[1].first &&
