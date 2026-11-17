@@ -648,7 +648,7 @@ private fun RichTicketEditor(content: String, onContentChange: (String) -> Unit,
         AndroidView(modifier = Modifier.fillMaxWidth().height(320.dp).border(1.dp, Line, RoundedCornerShape(12.dp)).clip(RoundedCornerShape(12.dp)), factory = { ctx ->
             WebView(ctx).apply {
                 settings.javaScriptEnabled = true; setBackgroundColor(android.graphics.Color.WHITE); isVerticalScrollBarEnabled = true
-                addJavascriptInterface(object { @JavascriptInterface fun changed(html: String) { onContentChange(html) } }, "TicketEditor")
+                addJavascriptInterface(object { @JavascriptInterface fun changed(html: String) { android.os.Handler(android.os.Looper.getMainLooper()).post { onContentChange(html) } } }, "TicketEditor")
                 webViewClient = WebViewClient()
                 val page = "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:Arial,sans-serif;font-size:16px;color:#30262a;padding:10px;margin:0;min-height:280px;outline:none}table{border-collapse:collapse;width:100%;table-layout:fixed}td,th{border:1px solid #c9aab3;padding:5px;min-width:30px;word-break:break-word}p{margin:0 0 8px}</style></head><body contenteditable=\"true\" oninput=\"TicketEditor.changed(document.body.innerHTML)\"></body></html>"
                 loadDataWithBaseURL(null, page, "text/html", "UTF-8", null)
