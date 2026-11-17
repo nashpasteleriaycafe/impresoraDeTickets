@@ -354,7 +354,7 @@ private fun TicketApp(context: Context) {
                                     TextButton(onClick = { imageBrightness = 0f; imageContrast = 100f }, enabled = selectedImage != null) { Text("Restablecer ajustes") }
                                 }
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    FilledTonalIconButton(onClick = { imagePicker.launch(arrayOf("image/*")) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Add, contentDescription = "Elegir imagen") }
+                                    OutlinedButton(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp)) { Icon(Icons.Default.Add, contentDescription = null); Spacer(Modifier.width(4.dp)); Text("Elegir", fontSize = 12.sp) }
                                     Button(onClick = { val uri = selectedImage; notice = if (uri == null) "Primero elegí una imagen." else runCatching { UsbEscPosPrinter.printBitmap(context, imagePreview ?: loadMonochromeImage(context, uri, imageRotation), paperWidth, selected?.feedLines ?: 3) }.getOrElse { "No se pudo preparar la imagen: " + (it.message ?: "error desconocido") } }, enabled = selectedImage != null && !imageLoading && imagePreview != null, modifier = Modifier.weight(3f)) { Icon(Icons.Default.Print, null); Spacer(Modifier.width(8.dp)); Text("Imprimir") }
                                 }
                             }
