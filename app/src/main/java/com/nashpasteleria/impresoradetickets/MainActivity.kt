@@ -237,30 +237,25 @@ private fun TicketApp(context: Context) {
         ) {
             when (activeTab) {
                 AppTab.DESIGN -> {
-                    item { Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { SectionHeading("Diseñador de tickets", "Editá cada celda y guardá el diseño como plantilla") } }
+                    item { SectionHeading("Editor de tickets", "Escribí y editá el contenido del ticket como en un editor de texto") }
                     item {
-                        Card(
-                            Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                        ) {
-                            Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                val template = selected ?: templates.first()
-                                Text("Tabla editable", fontWeight = FontWeight.SemiBold, color = Ink)
-                                key(template.id) {
-                                    TicketTableEditor(template = template, onContentChange = { content ->
-                                        updateTemplate(templates, template.copy(content = content), ::persist)
-                                    })
+                        CardBlock {
+                            val template = selected ?: templates.first()
+                            Text("Contenido del ticket", fontWeight = FontWeight.SemiBold, color = Ink)
+                            OutlinedTextField(
+                                value = template.content,
+                                onValueChange = { value -> updateTemplate(templates, template.copy(content = value), ::persist) },
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 280.dp),
+                                placeholder = { Text("Escribí el texto del ticket…") },
+                                supportingText = { Text("Podés usar saltos de línea y espacios para organizar el texto.") },
+                                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontSize = 16.sp, color = Ink)
+                            )
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { notice = UsbEscPosPrinter.print(context, template.copy(paperWidth = paperWidth)) }, modifier = Modifier.weight(1f)) {
+                                    Icon(Icons.Default.Print, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Imprimir")
                                 }
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
-                                    FilledTonalIconButton(onClick = {
-                                        notice = UsbEscPosPrinter.print(context, template.copy(paperWidth = paperWidth))
-                                    }) { Icon(Icons.Default.Print, contentDescription = "Imprimir ticket") }
-                                    FilledIconButton(onClick = {
-                                        newTemplateName = ""
-                                        showSaveTemplateDialog = true
-                                    }) { Icon(Icons.Default.Save, contentDescription = "Guardar como nueva plantilla") }
+                                Button(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.weight(1f)) {
+                                    Icon(Icons.Default.Save, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Guardar como")
                                 }
                             }
                         }
@@ -574,11 +569,18 @@ private fun updateTemplate(templates: MutableList<TicketTemplate>, updated: Tick
 }
 
 private fun loadMonochromeImage(context: Context, uri: Uri, rotation: Int, brightness: Float = 0f, contrast: Float = 100f): Bitmap {
-    val source = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+    // Downsample large photos before rotating/adjusting them to avoid exhausting Android heap.
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
         ?: error("No se pudo abrir la imagen.")
+    var sample = 1
+    while (bounds.outWidth / sample > 1600 || bounds.outHeight / sample > 1600) sample *= 2
+    val options = BitmapFactory.Options().apply { inSampleSize = sample.coerceAtLeast(1); inPreferredConfig = Bitmap.Config.RGB_565 }
+    val source = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+        ?: error("No se pudo decodificar la imagen.")
     val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
     val rotated = Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
-    val result = Bitmap.createBitmap(rotated.width, rotated.height, Bitmap.Config.ARGB_8888)
+    val result = Bitmap.createBitmap(rotated.width, rotated.height, Bitmap.Config.RGB_565)
     for (y in 0 until rotated.height) for (x in 0 until rotated.width) {
         val p = rotated.getPixel(x, y)
         val rawLuminance = (android.graphics.Color.red(p) * 299 + android.graphics.Color.green(p) * 587 + android.graphics.Color.blue(p) * 114) / 1000f
