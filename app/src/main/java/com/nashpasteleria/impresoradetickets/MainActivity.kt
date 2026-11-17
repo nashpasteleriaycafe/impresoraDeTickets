@@ -154,9 +154,10 @@ private fun TicketApp(context: Context) {
     var imagePreview by remember { mutableStateOf<Bitmap?>(null) }
     var pdfPages by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
     val selectedPdfPages = remember { mutableStateListOf<Int>() }
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) { runCatching { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }; selectedImage = uri; imageRotation = 0 } }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) { selectedImage = uri; imageRotation = 0 } }
     val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) selectedPdf = uri }
     val selected = templates.firstOrNull { it.id == selectedId } ?: templates.firstOrNull()
+    var designText by remember(selected?.id) { mutableStateOf(selected?.content?.let(::ticketContentToPlainText) ?: "") }
 
     LaunchedEffect(selectedImage, imageRotation, imageBrightness, imageContrast) {
         val uri = selectedImage
@@ -241,20 +242,31 @@ private fun TicketApp(context: Context) {
         ) {
             when (activeTab) {
                 AppTab.DESIGN -> {
-                    item { SectionHeading("Editor de tickets", "Formato de texto, tablas y variables para personalizar cada ticket") }
+                    item { SectionHeading("Diseño", "Escribí el ticket respetando los saltos de línea") }
                     item {
                         CardBlock {
                             val template = selected ?: templates.first()
-                            RichTicketEditor(template.content, { value -> updateTemplate(templates, template.copy(content = value), ::persist) }, Modifier.fillMaxWidth())
-                            Text("Podés insertar tablas, elegir tipografía y tamaño, aplicar negrita o cursiva y agregar variables.", fontSize = 11.sp, color = Muted)
+                            OutlinedTextField(
+                                value = designText,
+                                onValueChange = { value ->
+                                    designText = value
+                                    updateTemplate(templates, template.copy(content = value), ::persist)
+                                },
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 280.dp),
+                                placeholder = { Text("Escribí aquí el texto del ticket…") },
+                                label = { Text("Texto del ticket") },
+                                minLines = 12,
+                                maxLines = 24
+                            )
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(onClick = { notice = UsbEscPosPrinter.print(context, template.copy(paperWidth = paperWidth)) }, modifier = Modifier.weight(1f)) {
+                                OutlinedButton(onClick = { notice = UsbEscPosPrinter.print(context, template.copy(content = designText, paperWidth = paperWidth)) }, modifier = Modifier.weight(1f)) {
                                     Icon(Icons.Default.Print, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Imprimir")
                                 }
                                 Button(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.weight(1f)) {
                                     Icon(Icons.Default.Save, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Guardar como")
                                 }
                             }
+                            Text("Cada línea se ajustará automáticamente al ancho del ticket al imprimir.", fontSize = 11.sp, color = Muted)
                         }
                     }
                 }
@@ -300,7 +312,7 @@ private fun TicketApp(context: Context) {
                                 }
                                 CardBlock(modifier = Modifier.weight(0.85f)) {
                                     Text("Opciones", fontWeight = FontWeight.SemiBold, color = Ink)
-                                    FilledTonalIconButton(onClick = { imagePicker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Add, contentDescription = "Elegir imagen") }
+                                    FilledTonalIconButton(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Add, contentDescription = "Elegir imagen") }
                                     Text("Elegir imagen", fontSize = 12.sp, color = Muted)
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         IconButton(onClick = { imageRotation = (imageRotation + 270) % 360 }, enabled = selectedImage != null) { Icon(Icons.Default.RotateLeft, contentDescription = "Girar a la izquierda") }
@@ -524,6 +536,16 @@ private fun TicketApp(context: Context) {
     }
 }
 
+
+private fun ticketContentToPlainText(content: String): String {
+    if (!content.contains("<") || !content.contains(">")) return content
+    val withBreaks = content
+        .replace(Regex("(?i)<br\\s*/?>"), "\\n")
+        .replace(Regex("(?i)</p\\s*>|</div\\s*>|</tr\\s*>"), "\\n")
+        .replace(Regex("(?i)</t[dh]\\s*>"), "  ")
+    return android.text.Html.fromHtml(withBreaks, android.text.Html.FROM_HTML_MODE_LEGACY)
+        .toString().replace(Regex("\\n{3,}"), "\\n\\n").trimEnd()
+}
 
 private fun formatPageRanges(indices: List<Int>): String {
     val pages = indices.distinct().sorted().map { it + 1 }
