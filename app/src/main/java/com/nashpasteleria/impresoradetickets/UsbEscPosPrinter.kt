@@ -89,7 +89,17 @@ object UsbEscPosPrinter {
         add(0x1B, 0x61, 0x00)
         add(0x1B, 0x21, 0x00)
         val charset = Charset.forName("windows-1252")
-        val lines = template.content.replace("\r\n", "\n").replace('\r', '\n').split('\n')
+        val source = template.content
+        val printable = if (source.contains("<html", true) || source.contains("<p", true) || source.contains("<table", true) || source.contains("<div", true)) {
+            val tableAware = source.replace(Regex("(?i)</td>\\s*<td[^>]*>"), "\\t")
+                .replace(Regex("(?i)</t[dh]\\s*>"), "")
+                .replace(Regex("(?i)</tr\\s*>"), "\\n")
+                .replace(Regex("(?i)<br\\s*/?>"), "\\n")
+                .replace(Regex("(?i)</p\\s*>|</div\\s*>"), "\\n")
+                .replace(Regex("(?i)<p[^>]*>|<div[^>]*>|<tr[^>]*>|<td[^>]*>|<th[^>]*>"), "")
+            android.text.Html.fromHtml(tableAware, android.text.Html.FROM_HTML_MODE_LEGACY).toString()
+        } else source
+        val lines = printable.replace("\r\n", "\n").replace('\r', '\n').split('\n')
         val maxChars = if (template.paperWidth <= 58) 32 else 48
         lines.forEach { line ->
             val cells = line.split('\t')
