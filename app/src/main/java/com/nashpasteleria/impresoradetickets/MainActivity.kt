@@ -631,9 +631,11 @@ private fun renderPdfPages(context: Context, uri: Uri, paperWidth: Int): List<Bi
 private fun RichTicketEditor(content: String, onContentChange: (String) -> Unit, modifier: Modifier = Modifier) {
     var web by remember { mutableStateOf<WebView?>(null) }
     val initial = remember(content.take(100), content.length) { if (content.trimStart().startsWith("<p", true) || content.contains("<table", true) || content.contains("<div", true)) content else "<p>" + android.text.TextUtils.htmlEncode(content).replace("\n", "<br>") + "</p>" }
+    var fonts by remember { mutableStateOf(false) }
+    var sizes by remember { mutableStateOf(false) }
+    var vars by remember { mutableStateOf(false) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-            var fonts by remember { mutableStateOf(false) }; var sizes by remember { mutableStateOf(false) }; var vars by remember { mutableStateOf(false) }
             Box { OutlinedButton(onClick = { fonts = true }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("Tipografía") }; DropdownMenu(expanded = fonts, onDismissRequest = { fonts = false }) { listOf("Arial" to "Arial", "Serif" to "serif", "Monospace" to "monospace", "Sans serif" to "sans-serif").forEach { (label, value) -> DropdownMenuItem(text = { Text(label) }, onClick = { web?.evaluateJavascript("document.execCommand('fontName',false,'" + value + "')", null); fonts = false }) } } }
             Box { OutlinedButton(onClick = { sizes = true }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("Tamaño") }; DropdownMenu(expanded = sizes, onDismissRequest = { sizes = false }) { listOf("Chico" to 2, "Normal" to 3, "Grande" to 5, "Muy grande" to 6).forEach { (label, value) -> DropdownMenuItem(text = { Text(label) }, onClick = { web?.evaluateJavascript("document.execCommand('fontSize',false,'" + value + "')", null); sizes = false }) } } }
             OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('bold')", null) }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)) { Text("B", fontWeight = FontWeight.Bold) }
