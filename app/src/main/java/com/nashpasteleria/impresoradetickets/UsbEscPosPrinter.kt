@@ -26,7 +26,7 @@ object UsbEscPosPrinter {
         val width = if (template.paperWidth <= 58) 384 else 576
         val margin = 12f
         val availableWidth = width - margin * 2
-        val lines = template.content.replace("\\r\\n", "\\n").replace('\\r', '\\n').split("\\n")
+        val lines = template.content.replace("\r\n", "\n").replace('\r', '\n').split("\n")
         val baseSize = 30f
         val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.BLACK
