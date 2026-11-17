@@ -17,52 +17,44 @@ object UsbEscPosPrinter {
     private const val ACTION_USB_PERMISSION = "com.nashpasteleria.impresoradetickets.USB_PERMISSION"
 
     fun print(context: Context, template: TicketTemplate): String {
-        val manager = context.getSystemService(Context.USB_SERVICE) as UsbManager
-        val devices = manager.deviceList.values.toList()
-        if (devices.isEmpty()) {
-            return "No se detectó ninguna impresora USB. Conectá la RPT001 al Android con un cable OTG compatible y asegurate de que esté encendida."
-        }
+        // Raster text makes line breaks and per-line sizing deterministic across ESC/POS printers.
+        val ticket = renderTicketText(template)
+        return printBitmap(context, ticket, template.paperWidth, template.feedLines)
+    }
 
-        val device = devices.firstOrNull { hasBulkOut(it) } ?: devices.first()
-        if (!manager.hasPermission(device)) {
-            val permissionIntent = PendingIntent.getBroadcast(
-                context, 0,
-                Intent(ACTION_USB_PERMISSION).setPackage(context.packageName),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            manager.requestPermission(device, permissionIntent)
-            return "Aceptá el permiso USB que muestra Android y después tocá Imprimir ticket por USB otra vez."
+    private fun renderTicketText(template: TicketTemplate): Bitmap {
+        val width = if (template.paperWidth <= 58) 384 else 576
+        val margin = 12f
+        val availableWidth = width - margin * 2
+        val lines = template.content.replace("\\r\\n", "\\n").replace('\\r', '\\n').split("\\n")
+        val baseSize = 30f
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.BLACK
+            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
+            textAlign = android.graphics.Paint.Align.LEFT
         }
-
-        val connection = manager.openDevice(device)
-            ?: return "Android detectó el USB, pero no pudo abrirlo. Desconectá y reconectá el cable OTG y probá otra vez."
-
-        val target = findBulkOut(device)
-        if (target == null) {
-            connection.close()
-            return "Se detectó el USB, pero no se encontró un canal de impresión compatible."
-        }
-        val (intf, endpoint) = target
-        if (!connection.claimInterface(intf, true)) {
-            connection.close()
-            return "No se pudo reservar la interfaz USB de la impresora."
-        }
-        try {
-            val payload = buildEscPos(template)
-            var offset = 0
-            while (offset < payload.size) {
-                val count = minOf(4096, payload.size - offset)
-                val sent = connection.bulkTransfer(endpoint, payload, offset, count, 5000)
-                if (sent <= 0) {
-                    return "La impresora no aceptó los datos. Revisá que esté encendida, con papel y sin luces de error."
-                }
-                offset += sent
+        val sizes = lines.map { line ->
+            if (line.isEmpty()) 24f
+            else {
+                paint.textSize = baseSize
+                val measured = paint.measureText(line).coerceAtLeast(1f)
+                (baseSize * availableWidth / measured).coerceIn(8f, 48f)
             }
-            return "Ticket enviado a la impresora USB. Si no salió papel, revisá el cable OTG, el estado de la impresora y el permiso USB."
-        } finally {
-            connection.releaseInterface(intf)
-            connection.close()
         }
+        val heights = sizes.map { it * 1.22f }
+        val height = (heights.sum() + 12f).toInt().coerceAtLeast(24)
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        canvas.drawColor(android.graphics.Color.WHITE)
+        var y = 6f
+        lines.forEachIndexed { index, line ->
+            val size = sizes[index]
+            paint.textSize = size
+            val baseline = y - paint.fontMetrics.ascent
+            if (line.isNotEmpty()) canvas.drawText(line, margin, baseline, paint)
+            y += heights[index]
+        }
+        return bitmap
     }
 
     private fun hasBulkOut(device: UsbDevice): Boolean = findBulkOut(device) != null
