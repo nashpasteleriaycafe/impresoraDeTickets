@@ -1,6 +1,9 @@
 package com.nashpasteleria.impresoradetickets
 
 import android.content.Context
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.webkit.JavascriptInterface
 import android.graphics.BitmapFactory
 import android.graphics.Bitmap
 import android.graphics.Matrix
@@ -50,6 +53,7 @@ import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
@@ -150,7 +154,7 @@ private fun TicketApp(context: Context) {
     var imagePreview by remember { mutableStateOf<Bitmap?>(null) }
     var pdfPages by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
     val selectedPdfPages = remember { mutableStateListOf<Int>() }
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) { selectedImage = uri; imageRotation = 0 } }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) { runCatching { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }; selectedImage = uri; imageRotation = 0 } }
     val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) selectedPdf = uri }
     val selected = templates.firstOrNull { it.id == selectedId } ?: templates.firstOrNull()
 
@@ -237,19 +241,12 @@ private fun TicketApp(context: Context) {
         ) {
             when (activeTab) {
                 AppTab.DESIGN -> {
-                    item { SectionHeading("Editor de tickets", "Escribí y editá el contenido del ticket como en un editor de texto") }
+                    item { SectionHeading("Editor de tickets", "Formato de texto, tablas y variables para personalizar cada ticket") }
                     item {
                         CardBlock {
                             val template = selected ?: templates.first()
-                            Text("Contenido del ticket", fontWeight = FontWeight.SemiBold, color = Ink)
-                            OutlinedTextField(
-                                value = template.content,
-                                onValueChange = { value -> updateTemplate(templates, template.copy(content = value), ::persist) },
-                                modifier = Modifier.fillMaxWidth().heightIn(min = 280.dp),
-                                placeholder = { Text("Escribí el texto del ticket…") },
-                                supportingText = { Text("Podés usar saltos de línea y espacios para organizar el texto.") },
-                                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontSize = 16.sp, color = Ink)
-                            )
+                            RichTicketEditor(template.content, { value -> updateTemplate(templates, template.copy(content = value), ::persist) }, Modifier.fillMaxWidth())
+                            Text("Podés insertar tablas, elegir tipografía y tamaño, aplicar negrita o cursiva y agregar variables.", fontSize = 11.sp, color = Muted)
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(onClick = { notice = UsbEscPosPrinter.print(context, template.copy(paperWidth = paperWidth)) }, modifier = Modifier.weight(1f)) {
                                     Icon(Icons.Default.Print, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Imprimir")
@@ -303,7 +300,7 @@ private fun TicketApp(context: Context) {
                                 }
                                 CardBlock(modifier = Modifier.weight(0.85f)) {
                                     Text("Opciones", fontWeight = FontWeight.SemiBold, color = Ink)
-                                    FilledTonalIconButton(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Add, contentDescription = "Elegir imagen") }
+                                    FilledTonalIconButton(onClick = { imagePicker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Add, contentDescription = "Elegir imagen") }
                                     Text("Elegir imagen", fontSize = 12.sp, color = Muted)
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         IconButton(onClick = { imageRotation = (imageRotation + 270) % 360 }, enabled = selectedImage != null) { Icon(Icons.Default.RotateLeft, contentDescription = "Girar a la izquierda") }
@@ -345,7 +342,7 @@ private fun TicketApp(context: Context) {
                                     TextButton(onClick = { imageBrightness = 0f; imageContrast = 100f }, enabled = selectedImage != null) { Text("Restablecer ajustes") }
                                 }
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    FilledTonalIconButton(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Add, contentDescription = "Elegir imagen") }
+                                    FilledTonalIconButton(onClick = { imagePicker.launch(arrayOf("image/*")) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Add, contentDescription = "Elegir imagen") }
                                     Button(onClick = { val uri = selectedImage; notice = if (uri == null) "Primero elegí una imagen." else runCatching { UsbEscPosPrinter.printBitmap(context, imagePreview ?: loadMonochromeImage(context, uri, imageRotation), paperWidth, selected?.feedLines ?: 3) }.getOrElse { "No se pudo preparar la imagen: " + (it.message ?: "error desconocido") } }, enabled = selectedImage != null && !imageLoading && imagePreview != null, modifier = Modifier.weight(3f)) { Icon(Icons.Default.Print, null); Spacer(Modifier.width(8.dp)); Text("Imprimir") }
                                 }
                             }
@@ -630,6 +627,36 @@ private fun renderPdfPages(context: Context, uri: Uri, paperWidth: Int): List<Bi
     }
 }
 
+@Composable
+private fun RichTicketEditor(content: String, onContentChange: (String) -> Unit, modifier: Modifier = Modifier) {
+    var web by remember { mutableStateOf<WebView?>(null) }
+    val initial = remember(content.take(100), content.length) { if (content.trimStart().startsWith("<p", true) || content.contains("<table", true) || content.contains("<div", true)) content else "<p>" + android.text.TextUtils.htmlEncode(content).replace("\n", "<br>") + "</p>" }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+            var fonts by remember { mutableStateOf(false) }; var sizes by remember { mutableStateOf(false) }; var vars by remember { mutableStateOf(false) }
+            Box { OutlinedButton(onClick = { fonts = true }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("Tipografía") }; DropdownMenu(expanded = fonts, onDismissRequest = { fonts = false }) { listOf("Arial" to "Arial", "Serif" to "serif", "Monospace" to "monospace", "Sans serif" to "sans-serif").forEach { (label, value) -> DropdownMenuItem(text = { Text(label) }, onClick = { web?.evaluateJavascript("document.execCommand('fontName',false,'" + value + "')", null); fonts = false }) } } }
+            Box { OutlinedButton(onClick = { sizes = true }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("Tamaño") }; DropdownMenu(expanded = sizes, onDismissRequest = { sizes = false }) { listOf("Chico" to 2, "Normal" to 3, "Grande" to 5, "Muy grande" to 6).forEach { (label, value) -> DropdownMenuItem(text = { Text(label) }, onClick = { web?.evaluateJavascript("document.execCommand('fontSize',false,'" + value + "')", null); sizes = false }) } } }
+            OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('bold')", null) }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)) { Text("B", fontWeight = FontWeight.Bold) }
+            OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('italic')", null) }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)) { Text("I", fontStyle = androidx.compose.ui.text.font.FontStyle.Italic) }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('justifyLeft')", null) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("Izquierda") }
+            OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('justifyCenter')", null) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("Centrar") }
+            OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('insertHTML',false,'<table border=\"1\" style=\"width:100%;border-collapse:collapse\"><tr><td>Celda 1</td><td>Celda 2</td></tr><tr><td>Celda 3</td><td>Celda 4</td></tr></table><p><br></p>')", null) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("+ Tabla") }
+            Box { OutlinedButton(onClick = { vars = true }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("+ Variable") }; DropdownMenu(expanded = vars, onDismissRequest = { vars = false }) { listOf("Fecha" to "{{fecha}}", "Hora" to "{{hora}}", "Producto" to "{{producto}}", "Cantidad" to "{{cantidad}}", "Precio" to "{{precio}}", "Total" to "{{total}}").forEach { (label, value) -> DropdownMenuItem(text = { Text(label) }, onClick = { web?.evaluateJavascript("document.execCommand('insertText',false,'" + value + "')", null); vars = false }) } } }
+        }
+        AndroidView(modifier = Modifier.fillMaxWidth().height(320.dp).border(1.dp, Line, RoundedCornerShape(12.dp)).clip(RoundedCornerShape(12.dp)), factory = { ctx ->
+            WebView(ctx).apply {
+                settings.javaScriptEnabled = true; setBackgroundColor(android.graphics.Color.WHITE); isVerticalScrollBarEnabled = true
+                addJavascriptInterface(object { @JavascriptInterface fun changed(html: String) { onContentChange(html) } }, "TicketEditor")
+                webViewClient = WebViewClient()
+                val page = "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:Arial,sans-serif;font-size:16px;color:#30262a;padding:10px;margin:0;min-height:280px;outline:none}table{border-collapse:collapse;width:100%;table-layout:fixed}td,th{border:1px solid #c9aab3;padding:5px;min-width:30px;word-break:break-word}p{margin:0 0 8px}</style></head><body contenteditable=\"true\" oninput=\"TicketEditor.changed(document.body.innerHTML)\"></body></html>"
+                loadDataWithBaseURL(null, page, "text/html", "UTF-8", null)
+                post { evaluateJavascript("document.body.innerHTML=" + org.json.JSONObject.quote(initial), null) }; web = this
+            }
+        }, update = { web = it })
+    }
+}
 @Composable
 private fun TicketTableEditor(template: TicketTemplate, onContentChange: (String) -> Unit) {
     fun parse(value: String): List<List<String>> =
