@@ -312,7 +312,7 @@ private fun TicketApp(context: Context) {
                                 }
                                 CardBlock(modifier = Modifier.weight(0.85f)) {
                                     Text("Opciones", fontWeight = FontWeight.SemiBold, color = Ink)
-                                    FilledTonalIconButton(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Add, contentDescription = "Elegir imagen") }
+                                    Button(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Add, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Elegir imagen") }
                                     Text("Elegir imagen", fontSize = 12.sp, color = Muted)
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         IconButton(onClick = { imageRotation = (imageRotation + 270) % 360 }, enabled = selectedImage != null) { Icon(Icons.Default.RotateLeft, contentDescription = "Girar a la izquierda") }
@@ -540,11 +540,11 @@ private fun TicketApp(context: Context) {
 private fun ticketContentToPlainText(content: String): String {
     if (!content.contains("<") || !content.contains(">")) return content
     val withBreaks = content
-        .replace(Regex("(?i)<br\\s*/?>"), "\\n")
-        .replace(Regex("(?i)</p\\s*>|</div\\s*>|</tr\\s*>"), "\\n")
+        .replace(Regex("(?i)<br\\s*/?>"), "\n")
+        .replace(Regex("(?i)</p\\s*>|</div\\s*>|</tr\\s*>"), "\n")
         .replace(Regex("(?i)</t[dh]\\s*>"), "  ")
     return android.text.Html.fromHtml(withBreaks, android.text.Html.FROM_HTML_MODE_LEGACY)
-        .toString().replace(Regex("\\n{3,}"), "\\n\\n").trimEnd()
+        .toString().replace(Regex("\n{3,}"), "\n\n").trimEnd()
 }
 
 private fun formatPageRanges(indices: List<Int>): String {
