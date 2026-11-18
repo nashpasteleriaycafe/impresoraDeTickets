@@ -264,7 +264,7 @@ private fun TicketApp(context: Context) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("Modo de diseño", fontWeight = FontWeight.SemiBold, color = Ink)
                                 Spacer(Modifier.weight(1f))
-                                SingleChoiceSegmentedButtonRow {
+                                SingleChoiceSegmentedButtonRow(count = 2) {
                                     SegmentedButton(selected = !traditional, onClick = { designMode = "Ajuste automático" }, shape = SegmentedButtonDefaults.itemShape(0)) { Text("Automático", fontSize = 11.sp) }
                                     SegmentedButton(selected = traditional, onClick = { designMode = "Tradicional" }, shape = SegmentedButtonDefaults.itemShape(1)) { Text("Tradicional", fontSize = 11.sp) }
                                 }
