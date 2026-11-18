@@ -43,7 +43,6 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.FormatAlignLeft
 import androidx.compose.material.icons.filled.FormatAlignCenter
 import androidx.compose.material.icons.filled.FormatAlignRight
-import androidx.compose.material.icons.filled.FormatAlignJustify
 import androidx.compose.material.icons.filled.FormatBold
 import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatUnderlined
@@ -229,7 +228,6 @@ private fun TicketApp(context: Context) {
                 val alignment = when (value) {
                     "Centro" -> TextAlign.Center
                     "Derecha" -> TextAlign.End
-                    "Justificado" -> TextAlign.Justify
                     else -> TextAlign.Start
                 }
                 ranges.forEach { range ->
@@ -394,7 +392,6 @@ private fun TicketApp(context: Context) {
                         IconButton(onClick = { applyLineFormatting("alignment", "Izquierda") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatAlignLeft, "Alinear a la izquierda", tint = if (traditionalAlignment == "Izquierda") RoseDark else Ink, modifier = Modifier.size(20.dp)) }
                         IconButton(onClick = { applyLineFormatting("alignment", "Centro") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatAlignCenter, "Centrar", tint = if (traditionalAlignment == "Centro") RoseDark else Ink, modifier = Modifier.size(20.dp)) }
                         IconButton(onClick = { applyLineFormatting("alignment", "Derecha") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatAlignRight, "Alinear a la derecha", tint = if (traditionalAlignment == "Derecha") RoseDark else Ink, modifier = Modifier.size(20.dp)) }
-                        IconButton(onClick = { applyLineFormatting("alignment", "Justificado") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatAlignJustify, "Justificar", tint = if (traditionalAlignment == "Justificado") RoseDark else Ink, modifier = Modifier.size(20.dp)) }
                         VerticalDivider(Modifier.height(26.dp), color = Line)
                         IconButton(onClick = { applyFormatting("bold") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatBold, "Negrita", tint = Ink, modifier = Modifier.size(20.dp)) }
                         IconButton(onClick = { applyFormatting("italic") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatItalic, "Cursiva", tint = Ink, modifier = Modifier.size(20.dp)) }
@@ -429,10 +426,8 @@ private fun TicketApp(context: Context) {
                             BasicTextField(
                                 value = designValue,
                                 onValueChange = { next ->
-                                    // Selection/cursor-only updates must not replace the styled text with a plain string.
-                                    designValue = if (next.text == designValue.text) {
-                                        next.copy(annotatedString = designValue.annotatedString)
-                                    } else next
+                                    // Accept Compose's edit result directly to avoid stale annotated text at line breaks.
+                                    designValue = next
                                 },
                                 modifier = Modifier.fillMaxSize()
                                     .onPreviewKeyEvent { event ->
@@ -551,7 +546,6 @@ private fun TicketApp(context: Context) {
                                     formatButton(traditionalAlignment == "Izquierda", "Alinear a la izquierda", { traditionalAlignment = "Izquierda" }, Icons.Default.FormatAlignLeft)
                                     formatButton(traditionalAlignment == "Centro", "Centrar", { traditionalAlignment = "Centro" }, Icons.Default.FormatAlignCenter)
                                     formatButton(traditionalAlignment == "Derecha", "Alinear a la derecha", { traditionalAlignment = "Derecha" }, Icons.Default.FormatAlignRight)
-                                    formatButton(traditionalAlignment == "Justificado", "Justificar", { traditionalAlignment = "Justificado" }, Icons.Default.FormatAlignJustify)
                                     VerticalDivider(Modifier.height(28.dp), color = Line)
                                     formatButton(traditionalBold, "Negrita", { traditionalBold = !traditionalBold }, Icons.Default.FormatBold)
                                     formatButton(traditionalItalic, "Cursiva", { traditionalItalic = !traditionalItalic }, Icons.Default.FormatItalic)
@@ -809,6 +803,25 @@ private fun TicketApp(context: Context) {
                     }
                     item {
                         CardBlock {
+                            Text("Página de prueba", fontWeight = FontWeight.SemiBold, color = Ink)
+                            Text("Imprime una hoja de diagnóstico con tamaños, tipografías, estilos, alineaciones, letras, números y símbolos.", color = Muted, fontSize = 12.sp)
+                            Button(onClick = {
+                                val testContent = "<p align=\"left\"><span style=\"font-family:sans-serif;font-size:24px\"><b>PÁGINA DE PRUEBA</b></span></p>" +
+                                    "<p align=\"left\"><span style=\"font-family:sans-serif;font-size:12px\">Sans Serif · 12 px · Normal</span></p>" +
+                                    "<p align=\"center\"><span style=\"font-family:serif;font-size:18px\"><b>Serif · 18 px · Negrita</b></span></p>" +
+                                    "<p align=\"right\"><span style=\"font-family:monospace;font-size:14px\"><i>Monospace · 14 px · Cursiva</i></span></p>" +
+                                    "<p align=\"left\"><span style=\"font-family:sans-serif;font-size:16px\"><u>Subrayado · 16 px</u></span></p>" +
+                                    "<p align=\"left\"><span style=\"font-family:sans-serif;font-size:12px\">ABCDEFGHIJKLMNOPQRSTUVWXYZ</span></p>" +
+                                    "<p align=\"left\"><span style=\"font-family:sans-serif;font-size:12px\">abcdefghijklmnopqrstuvwxyz</span></p>" +
+                                    "<p align=\"left\"><span style=\"font-family:monospace;font-size:12px\">0123456789</span></p>" +
+                                    "<p align=\"left\"><span style=\"font-family:sans-serif;font-size:12px\">¡! ¿? @ # $ % &amp; * ( ) - _ + = / \\ : ; , .</span></p>"
+                                val testTemplate = TicketTemplate(name = "Página de prueba", content = testContent, paperWidth = paperWidth, feedLines = selected?.feedLines ?: 3, designMode = "Tradicional", fontSize = 18, fontFamily = "Sans Serif", alignment = "Izquierda")
+                                notice = UsbEscPosPrinter.print(context, testTemplate)
+                            }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Print, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Imprimir página de prueba") }
+                        }
+                    }
+                    item {
+                        CardBlock {
                             Text("Impresora", fontWeight = FontWeight.SemiBold, color = Ink)
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(Modifier.size(10.dp).clip(CircleShape).background(Rose))
@@ -963,7 +976,6 @@ private fun serializeRichText(value: AnnotatedString, sizeScale: Float = 1f): St
         val alignName = when (alignment) {
             TextAlign.Center -> "center"
             TextAlign.End, TextAlign.Right -> "right"
-            TextAlign.Justify -> "justify"
             else -> "left"
         }
         out.append("<p align=\"").append(alignName).append("\">")
