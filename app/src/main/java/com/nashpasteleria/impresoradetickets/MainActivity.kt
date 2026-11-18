@@ -413,7 +413,6 @@ private fun TicketApp(context: Context) {
                     val editorAlignment = when (traditionalAlignment) {
                         "Centro" -> TextAlign.Center
                         "Derecha" -> TextAlign.End
-                        "Justificado" -> TextAlign.Justify
                         else -> TextAlign.Start
                     }
                     Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.TopCenter) {
@@ -918,7 +917,7 @@ private fun TicketTextPreview(text: String, paperWidth: Int, modifier: Modifier 
                 val measured = paint.measureText(line).coerceAtLeast(1f)
                 val scaledPx = if (autoFit) (baseTextPx * (previewWidth - 20f) / measured).coerceAtLeast(8f) else fontSize * density
                 val family = when (fontFamilyName) { "Serif" -> FontFamily.Serif; "Monospace" -> FontFamily.Monospace; else -> FontFamily.SansSerif }
-                val align = when (alignment) { "Centro" -> TextAlign.Center; "Derecha" -> TextAlign.End; "Justificado" -> TextAlign.Justify; else -> TextAlign.Start }
+                val align = when (alignment) { "Centro" -> TextAlign.Center; "Derecha" -> TextAlign.End; else -> TextAlign.Start }
                 Text(
                     text = line, color = Color.Black,
                     fontSize = if (autoFit) (scaledPx / density).sp else fontSize.sp,
