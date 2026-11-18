@@ -460,7 +460,7 @@ private fun TicketApp(context: Context) {
                                         }
                                         DropdownMenu(expanded = sizeMenu, onDismissRequest = { sizeMenu = false }) {
                                             listOf(10, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 40).forEach { size ->
-                                                DropdownMenuItem(text = { Text("${size} sp") }, onClick = { traditionalFontSize = size; sizeMenu = false })
+                                                DropdownMenuItem(text = { Text("${size} sp") }, onClick = { traditionalFontSize = size; applyLineFormatting("size", size.toString()); sizeMenu = false })
                                             }
                                         }
                                     }
@@ -472,7 +472,7 @@ private fun TicketApp(context: Context) {
                                         }
                                         DropdownMenu(expanded = fontMenu, onDismissRequest = { fontMenu = false }) {
                                             listOf("Sans Serif", "Serif", "Monospace").forEach { font ->
-                                                DropdownMenuItem(text = { Text(font) }, onClick = { traditionalFont = font; fontMenu = false })
+                                                DropdownMenuItem(text = { Text(font) }, onClick = { traditionalFont = font; applyLineFormatting("font", font); fontMenu = false })
                                             }
                                         }
                                     }
@@ -482,16 +482,16 @@ private fun TicketApp(context: Context) {
                                             Icon(icon, contentDescription = description, tint = if (selectedState) RoseDark else Ink)
                                         }
                                     }
-                                    formatButton(traditionalAlignment == "Izquierda", "Alinear a la izquierda", { traditionalAlignment = "Izquierda" }, Icons.Default.FormatAlignLeft)
-                                    formatButton(traditionalAlignment == "Centro", "Centrar", { traditionalAlignment = "Centro" }, Icons.Default.FormatAlignCenter)
-                                    formatButton(traditionalAlignment == "Derecha", "Alinear a la derecha", { traditionalAlignment = "Derecha" }, Icons.Default.FormatAlignRight)
+                                    formatButton(traditionalAlignment == "Izquierda", "Alinear a la izquierda", { applyLineFormatting("alignment", "Izquierda") }, Icons.Default.FormatAlignLeft)
+                                    formatButton(traditionalAlignment == "Centro", "Centrar", { applyLineFormatting("alignment", "Centro") }, Icons.Default.FormatAlignCenter)
+                                    formatButton(traditionalAlignment == "Derecha", "Alinear a la derecha", { applyLineFormatting("alignment", "Derecha") }, Icons.Default.FormatAlignRight)
                                     VerticalDivider(Modifier.height(28.dp), color = Line)
-                                    formatButton(traditionalBold, "Negrita", { traditionalBold = !traditionalBold }, Icons.Default.FormatBold)
-                                    formatButton(traditionalItalic, "Cursiva", { traditionalItalic = !traditionalItalic }, Icons.Default.FormatItalic)
-                                    formatButton(traditionalUnderline, "Subrayado", { traditionalUnderline = !traditionalUnderline }, Icons.Default.FormatUnderlined)
+                                    formatButton(traditionalBold, "Negrita", { traditionalBold = !traditionalBold; applyFormatting("bold") }, Icons.Default.FormatBold)
+                                    formatButton(traditionalItalic, "Cursiva", { traditionalItalic = !traditionalItalic; applyFormatting("italic") }, Icons.Default.FormatItalic)
+                                    formatButton(traditionalUnderline, "Subrayado", { traditionalUnderline = !traditionalUnderline; applyFormatting("underline") }, Icons.Default.FormatUnderlined)
                                     VerticalDivider(Modifier.height(28.dp), color = Line)
                                     IconButton(onClick = {
-                                        val updated = template.copy(content = serializeRichText(designValue.annotatedString, ticketPreviewScale), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = traditionalBold, underline = traditionalUnderline, italic = traditionalItalic, paperWidth = paperWidth)
+                                        val updated = template.copy(content = richEditorState.toHtml(), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = traditionalBold, underline = traditionalUnderline, italic = traditionalItalic, paperWidth = paperWidth)
                                         updateTemplate(templates, updated, ::persist)
                                         notice = UsbEscPosPrinter.print(context, updated)
                                     }, modifier = Modifier.size(38.dp)) { Icon(Icons.Default.Print, contentDescription = "Imprimir", tint = RoseDark) }
@@ -534,12 +534,27 @@ private fun TicketApp(context: Context) {
                                 }
                             } else {
                                 CardBlock {
-                                    OutlinedTextField(value = designValue, onValueChange = { designValue = it }, modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp), placeholder = { Text("Escribí aquí el texto del ticket…") }, label = { Text("Texto del ticket") }, minLines = 5, maxLines = 12)
-                                    Text("Vista previa", fontWeight = FontWeight.SemiBold, color = Ink)
-                                    TicketTextPreview(designText, paperWidth, Modifier.fillMaxWidth(), !traditional, traditionalFontSize, traditionalFont, traditionalAlignment, traditionalBold, traditionalUnderline, traditionalItalic)
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        OutlinedButton(onClick = { val updated = template.copy(content = designText, designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = traditionalBold, underline = traditionalUnderline, italic = traditionalItalic, paperWidth = paperWidth); updateTemplate(templates, updated, ::persist); notice = UsbEscPosPrinter.print(context, updated) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Print, null); Spacer(Modifier.width(4.dp)); Text("Imprimir") }
-                                        Button(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Save, null); Spacer(Modifier.width(4.dp)); Text("Guardar como") }
+                                    if (traditional) {
+                                        Box(Modifier.fillMaxWidth().heightIn(min = 190.dp)) {
+                                            if (selected?.content.isNullOrBlank()) Text("Escribí el ticket…", color = Muted, modifier = Modifier.padding(12.dp))
+                                            RichTextEditor(state = richEditorState, modifier = Modifier.fillMaxWidth().heightIn(min = 190.dp))
+                                        }
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedButton(onClick = {
+                                                val updated = template.copy(content = richEditorState.toHtml(), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = traditionalBold, underline = traditionalUnderline, italic = traditionalItalic, paperWidth = paperWidth)
+                                                updateTemplate(templates, updated, ::persist)
+                                                notice = UsbEscPosPrinter.print(context, updated)
+                                            }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Print, null); Spacer(Modifier.width(4.dp)); Text("Imprimir") }
+                                            Button(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Save, null); Spacer(Modifier.width(4.dp)); Text("Guardar como") }
+                                        }
+                                    } else {
+                                        OutlinedTextField(value = designValue, onValueChange = { designValue = it }, modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp), placeholder = { Text("Escribí aquí el texto del ticket…") }, label = { Text("Texto del ticket") }, minLines = 5, maxLines = 12)
+                                        Text("Vista previa", fontWeight = FontWeight.SemiBold, color = Ink)
+                                        TicketTextPreview(designText, paperWidth, Modifier.fillMaxWidth(), true, traditionalFontSize, traditionalFont, traditionalAlignment, traditionalBold, traditionalUnderline, traditionalItalic)
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedButton(onClick = { val updated = template.copy(content = designText, designMode = designMode, paperWidth = paperWidth); updateTemplate(templates, updated, ::persist); notice = UsbEscPosPrinter.print(context, updated) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Print, null); Spacer(Modifier.width(4.dp)); Text("Imprimir") }
+                                            Button(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Save, null); Spacer(Modifier.width(4.dp)); Text("Guardar como") }
+                                        }
                                     }
                                 }
                             }
@@ -796,7 +811,7 @@ private fun TicketApp(context: Context) {
                         val source = selected
                         val created = TicketTemplate(
                             name = name,
-                            content = if (activeTab == AppTab.DESIGN) serializeRichText(designValue.annotatedString, ticketPreviewScale) else source?.content ?: "",
+                            content = if (activeTab == AppTab.DESIGN) { if (designMode == "Tradicional") richEditorState.toHtml() else serializeRichText(designValue.annotatedString, ticketPreviewScale) } else source?.content ?: "",
                             designMode = if (activeTab == AppTab.DESIGN) designMode else source?.designMode ?: "Ajuste automático", fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = traditionalBold, underline = traditionalUnderline, italic = traditionalItalic,
                             paperWidth = paperWidth,
                             feedLines = source?.feedLines ?: 3,
