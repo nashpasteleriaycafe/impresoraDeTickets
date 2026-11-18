@@ -38,7 +38,7 @@ object UsbEscPosPrinter {
             else {
                 paint.textSize = baseSize
                 val measured = paint.measureText(line).coerceAtLeast(1f)
-                (baseSize * availableWidth / measured).coerceIn(8f, 48f)
+                (baseSize * availableWidth / measured).coerceAtLeast(8f)
             }
         }
         val heights = sizes.map { it * 1.22f }
