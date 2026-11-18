@@ -301,7 +301,7 @@ private fun TicketApp(context: Context) {
                                 }
                             }
                             if (isLandscape) {
-                                Row(Modifier.fillMaxWidth().heightIn(min = 280.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Row((if (!traditional) Modifier.fillParentMaxHeight() else Modifier.fillMaxWidth().heightIn(min = 280.dp)), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     CardBlock(Modifier.weight(1f)) {
                                         Text("Texto del ticket", fontWeight = FontWeight.SemiBold, color = Ink)
                                         OutlinedTextField(value = designText, onValueChange = { designText = it }, modifier = Modifier.weight(1f).fillMaxWidth(), placeholder = { Text("Escribí aquí el texto del ticket…") }, minLines = 1, maxLines = Int.MAX_VALUE)
