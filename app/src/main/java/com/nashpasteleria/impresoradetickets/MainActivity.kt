@@ -627,8 +627,9 @@ private fun updateTemplate(templates: MutableList<TicketTemplate>, updated: Tick
 private fun loadMonochromeImage(context: Context, uri: Uri, rotation: Int, brightness: Float = 0f, contrast: Float = 100f): Bitmap {
     // Downsample large photos before rotating/adjusting them to avoid exhausting Android heap.
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+    val boundsStream = context.contentResolver.openInputStream(uri)
         ?: error("No se pudo abrir la imagen.")
+    boundsStream.use { BitmapFactory.decodeStream(it, null, bounds) }
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) error("El archivo no contiene una imagen compatible.")
     var sample = 1
     while (bounds.outWidth / sample > 1600 || bounds.outHeight / sample > 1600) sample *= 2
