@@ -87,7 +87,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 import com.mohamedrejeb.richeditor.ui.material3.RichTextEditor
-import com.mohamedrejeb.richeditor.ui.material3.rememberRichTextState
+import com.mohamedrejeb.richeditor.model.rememberRichTextState
 
 private val Rose = Color(0xFFE96B8E)
 private val RoseDark = Color(0xFFB94467)
@@ -213,17 +213,17 @@ private fun TicketApp(context: Context) {
                     "Derecha" -> TextAlign.End
                     else -> TextAlign.Start
                 }
-                richEditorState.toggleParagraphStyle(ParagraphStyle(textAlign = alignment))
+                richEditorState.addParagraphStyle(ParagraphStyle(textAlign = alignment))
                 traditionalAlignment = value
             }
-            "size" -> richEditorState.toggleSpanStyle(SpanStyle(fontSize = value.toIntOrNull()?.sp ?: 18.sp))
+            "size" -> richEditorState.addSpanStyle(SpanStyle(fontSize = value.toIntOrNull()?.sp ?: 18.sp))
             "font" -> {
                 val family = when (value) {
                     "Serif" -> FontFamily.Serif
                     "Monospace" -> FontFamily.Monospace
                     else -> FontFamily.SansSerif
                 }
-                richEditorState.toggleSpanStyle(SpanStyle(fontFamily = family))
+                richEditorState.addSpanStyle(SpanStyle(fontFamily = family))
                 traditionalFont = value
             }
         }
@@ -386,12 +386,10 @@ private fun TicketApp(context: Context) {
                             elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                         ) {
                             Box(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 7.dp)) {
-                                if (selected?.content.isNullOrBlank()) {
-                                    Text("Escribí el ticket…", color = Muted, fontSize = editorFontSize)
-                                }
                                 RichTextEditor(
                                     state = richEditorState,
-                                    modifier = Modifier.fillMaxSize()
+                                    modifier = Modifier.fillMaxSize(),
+                                    placeholder = { Text("Escribí el ticket…", color = Muted, fontSize = editorFontSize) }
                                 )
                             }
                         }
@@ -536,8 +534,11 @@ private fun TicketApp(context: Context) {
                                 CardBlock {
                                     if (traditional) {
                                         Box(Modifier.fillMaxWidth().heightIn(min = 190.dp)) {
-                                            if (selected?.content.isNullOrBlank()) Text("Escribí el ticket…", color = Muted, modifier = Modifier.padding(12.dp))
-                                            RichTextEditor(state = richEditorState, modifier = Modifier.fillMaxWidth().heightIn(min = 190.dp))
+                                            RichTextEditor(
+                                                state = richEditorState,
+                                                modifier = Modifier.fillMaxWidth().heightIn(min = 190.dp),
+                                                placeholder = { Text("Escribí el ticket…", color = Muted) }
+                                            )
                                         }
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             OutlinedButton(onClick = {
