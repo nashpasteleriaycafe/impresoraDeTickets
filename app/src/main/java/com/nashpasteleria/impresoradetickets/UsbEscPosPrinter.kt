@@ -62,12 +62,11 @@ object UsbEscPosPrinter {
     }
 
     private fun renderTicketText(template: TicketTemplate): Bitmap {
-        if (template.designMode == "Tradicional") return renderTraditionalTicketText(template)
         val width = if (template.paperWidth <= 58) 384 else 576
         val margin = 12f
         val availableWidth = width - margin * 2
         val source = template.content
-        val rich = if (source.contains("<b", true) || source.contains("<i", true) || source.contains("<u", true) || source.contains("<span", true) || source.contains("<br", true)) {
+        val rich = if (Regex("""<[a-zA-Z][^>]*>""").containsMatchIn(source)) {
             android.text.Html.fromHtml(normalizeRichHtml(source), android.text.Html.FROM_HTML_MODE_LEGACY)
         } else android.text.SpannableString(source)
         val text = rich.toString().replace("\r\n", "\n").replace('\r', '\n')
@@ -137,7 +136,17 @@ object UsbEscPosPrinter {
             val lineSize = sizes[lineIndex]
             paint.textSize = lineSize
             val measured = measureLine(line, start)
-            val xStart = when (template.alignment) {
+            val paragraphAlignment = if (rich is android.text.Spanned && line.isNotEmpty()) {
+                rich.getSpans(start, (start + line.length).coerceAtMost(rich.length), android.text.style.AlignmentSpan::class.java)
+                    .lastOrNull()?.alignment
+            } else null
+            val alignmentName = when (paragraphAlignment) {
+                android.text.Layout.Alignment.ALIGN_CENTER -> "Centro"
+                android.text.Layout.Alignment.ALIGN_OPPOSITE -> "Derecha"
+                android.text.Layout.Alignment.ALIGN_NORMAL -> "Izquierda"
+                else -> template.alignment
+            }
+            val xStart = when (alignmentName) {
                 "Centro" -> (width - measured) / 2f
                 "Derecha" -> width - margin - measured
                 else -> margin
