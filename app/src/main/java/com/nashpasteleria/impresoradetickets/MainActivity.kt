@@ -846,7 +846,7 @@ private fun TicketTextPreview(text: String, paperWidth: Int, modifier: Modifier 
                 val measured = paint.measureText(line).coerceAtLeast(1f)
                 val scaledPx = if (autoFit) (baseTextPx * (previewWidth - 20f) / measured).coerceAtLeast(8f) else fontSize * density
                 val family = when (fontFamilyName) { "Serif" -> FontFamily.Serif; "Monospace" -> FontFamily.Monospace; else -> FontFamily.SansSerif }
-                val align = when (alignment) { "Centro" -> TextAlign.Center; "Derecha" -> TextAlign.End; else -> TextAlign.Start }
+                val align = when (alignment) { "Centro" -> TextAlign.Center; "Derecha" -> TextAlign.End; "Justificado" -> TextAlign.Justify; else -> TextAlign.Start }
                 Text(
                     text = line, color = Color.Black,
                     fontSize = if (autoFit) (scaledPx / density).sp else fontSize.sp,
@@ -892,9 +892,10 @@ private fun serializeRichText(value: AnnotatedString): String {
     val out = StringBuilder()
     for (i in value.text.indices) {
         val styles = value.spanStyles.filter { i >= it.start && i < it.end }.map { it.item }
-        val bold = styles.any { it.fontWeight == FontWeight.Bold }
-        val italic = styles.any { it.fontStyle == androidx.compose.ui.text.font.FontStyle.Italic }
-        val underline = styles.any { it.textDecoration == androidx.compose.ui.text.style.TextDecoration.Underline }
+        // Later spans override earlier ones, including explicit "off" styles.
+        val bold = styles.lastOrNull { it.fontWeight != null }?.fontWeight == FontWeight.Bold
+        val italic = styles.lastOrNull { it.fontStyle != null }?.fontStyle == androidx.compose.ui.text.font.FontStyle.Italic
+        val underline = styles.lastOrNull { it.textDecoration != null }?.textDecoration == androidx.compose.ui.text.style.TextDecoration.Underline
         val size = styles.lastOrNull { it.fontSize.isSp }?.fontSize?.value?.toInt()
         val family = styles.lastOrNull { it.fontFamily != null }?.fontFamily
         if (bold) out.append("<b>")
