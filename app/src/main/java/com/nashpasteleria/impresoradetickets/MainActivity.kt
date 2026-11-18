@@ -178,6 +178,14 @@ private fun TicketApp(context: Context) {
     val selected = templates.firstOrNull { it.id == selectedId } ?: templates.firstOrNull()
     var designValue by remember(selected?.id) { mutableStateOf(TextFieldValue(selected?.content?.let(::ticketContentToAnnotatedString) ?: AnnotatedString(""))) }
     val designText = designValue.text
+    var designMode by remember(selected?.id) { mutableStateOf(selected?.designMode ?: "Ajuste automático") }
+    var traditionalFontSize by remember(selected?.id) { mutableIntStateOf(selected?.fontSize ?: 24) }
+    var traditionalFont by remember(selected?.id) { mutableStateOf(selected?.fontFamily ?: "Sans Serif") }
+    var traditionalAlignment by remember(selected?.id) { mutableStateOf(selected?.alignment ?: "Izquierda") }
+    var traditionalBold by remember(selected?.id) { mutableStateOf(selected?.bold ?: false) }
+    var traditionalUnderline by remember(selected?.id) { mutableStateOf(selected?.underline ?: false) }
+    var traditionalItalic by remember(selected?.id) { mutableStateOf(selected?.italic ?: false) }
+
     fun applyFormatting(kind: String) {
         val annotated = designValue.annotatedString
         val text = annotated.text
@@ -206,13 +214,6 @@ private fun TicketApp(context: Context) {
         builder.addStyle(style, start, end)
         designValue = TextFieldValue(builder.toAnnotatedString(), TextRange(start, end))
     }
-    var designMode by remember(selected?.id) { mutableStateOf(selected?.designMode ?: "Ajuste automático") }
-    var traditionalFontSize by remember(selected?.id) { mutableIntStateOf(selected?.fontSize ?: 24) }
-    var traditionalFont by remember(selected?.id) { mutableStateOf(selected?.fontFamily ?: "Sans Serif") }
-    var traditionalAlignment by remember(selected?.id) { mutableStateOf(selected?.alignment ?: "Izquierda") }
-    var traditionalBold by remember(selected?.id) { mutableStateOf(selected?.bold ?: false) }
-    var traditionalUnderline by remember(selected?.id) { mutableStateOf(selected?.underline ?: false) }
-    var traditionalItalic by remember(selected?.id) { mutableStateOf(selected?.italic ?: false) }
 
     LaunchedEffect(selectedImage, imageRotation, imageBrightness, imageContrast) {
         val uri = selectedImage
