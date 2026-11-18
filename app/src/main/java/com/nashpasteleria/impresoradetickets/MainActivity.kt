@@ -373,7 +373,12 @@ private fun TicketApp(context: Context) {
                         ) {
                             BasicTextField(
                                 value = designValue,
-                                onValueChange = { designValue = it },
+                                onValueChange = { next ->
+                                    // Selection/cursor-only updates must not replace the styled text with a plain string.
+                                    designValue = if (next.text == designValue.text) {
+                                        next.copy(annotatedString = designValue.annotatedString)
+                                    } else next
+                                },
                                 modifier = Modifier.fillMaxSize()
                                     .verticalScroll(rememberScrollState())
                                     .onPreviewKeyEvent { event ->
