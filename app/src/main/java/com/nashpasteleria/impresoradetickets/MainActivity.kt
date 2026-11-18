@@ -499,7 +499,7 @@ private fun TicketApp(context: Context) {
                         val source = selected
                         val created = TicketTemplate(
                             name = name,
-                            content = source?.content ?: ("Nombre del producto\n.\n" + SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())),
+                            content = if (activeTab == AppTab.DESIGN) designText else source?.content ?: ("Nombre del producto\n.\n" + SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())),
                             paperWidth = paperWidth,
                             feedLines = source?.feedLines ?: 3,
                             cutAfterPrint = source?.cutAfterPrint ?: true
