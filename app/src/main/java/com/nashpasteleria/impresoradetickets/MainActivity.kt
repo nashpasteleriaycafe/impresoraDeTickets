@@ -83,7 +83,9 @@ data class TicketTemplate(
     val content: String = "Nombre del producto\n.\n" + SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date()),
     val paperWidth: Int = 58,
     val feedLines: Int = 3,
-    val cutAfterPrint: Boolean = true
+    val cutAfterPrint: Boolean = true,
+    val designMode: String = "Ajuste automático", val fontSize: Int = 24, val fontFamily: String = "Sans Serif",
+    val alignment: String = "Izquierda", val bold: Boolean = false, val underline: Boolean = false, val italic: Boolean = false
 )
 
 private enum class AppTab(val title: String) {
@@ -125,7 +127,9 @@ private fun TicketApp(context: Context) {
                         },
                         paperWidth = o.optInt("paperWidth", 58),
                         feedLines = o.optInt("feedLines", 3),
-                        cutAfterPrint = o.optBoolean("cutAfterPrint", true)
+                        cutAfterPrint = o.optBoolean("cutAfterPrint", true),
+                        designMode = o.optString("designMode", "Ajuste automático"), fontSize = o.optInt("fontSize", 24), fontFamily = o.optString("fontFamily", "Sans Serif"),
+                        alignment = o.optString("alignment", "Izquierda"), bold = o.optBoolean("bold", false), underline = o.optBoolean("underline", false), italic = o.optBoolean("italic", false)
                     ))
                 }
             }
@@ -146,6 +150,8 @@ private fun TicketApp(context: Context) {
     var imageRotation by remember { mutableIntStateOf(0) }
     var imageBrightness by remember { mutableFloatStateOf(0f) }
     var imageContrast by remember { mutableFloatStateOf(100f) }
+    var brightnessControl by remember { mutableFloatStateOf(0f) }
+    var contrastControl by remember { mutableFloatStateOf(100f) }
     var imageLoading by remember { mutableStateOf(false) }
     var pdfLoading by remember { mutableStateOf(false) }
     val configuration = LocalConfiguration.current
@@ -158,6 +164,13 @@ private fun TicketApp(context: Context) {
     val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) selectedPdf = uri }
     val selected = templates.firstOrNull { it.id == selectedId } ?: templates.firstOrNull()
     var designText by remember(selected?.id) { mutableStateOf(selected?.content?.let(::ticketContentToPlainText) ?: "") }
+    var designMode by remember(selected?.id) { mutableStateOf(selected?.designMode ?: "Ajuste automático") }
+    var traditionalFontSize by remember(selected?.id) { mutableIntStateOf(selected?.fontSize ?: 24) }
+    var traditionalFont by remember(selected?.id) { mutableStateOf(selected?.fontFamily ?: "Sans Serif") }
+    var traditionalAlignment by remember(selected?.id) { mutableStateOf(selected?.alignment ?: "Izquierda") }
+    var traditionalBold by remember(selected?.id) { mutableStateOf(selected?.bold ?: false) }
+    var traditionalUnderline by remember(selected?.id) { mutableStateOf(selected?.underline ?: false) }
+    var traditionalItalic by remember(selected?.id) { mutableStateOf(selected?.italic ?: false) }
 
     LaunchedEffect(selectedImage, imageRotation, imageBrightness, imageContrast) {
         val uri = selectedImage
@@ -191,6 +204,8 @@ private fun TicketApp(context: Context) {
             arr.put(JSONObject().apply {
                 put("id", t.id); put("name", t.name); put("content", t.content)
                 put("paperWidth", t.paperWidth); put("feedLines", t.feedLines); put("cutAfterPrint", t.cutAfterPrint)
+                put("designMode", t.designMode); put("fontSize", t.fontSize); put("fontFamily", t.fontFamily); put("alignment", t.alignment)
+                put("bold", t.bold); put("underline", t.underline); put("italic", t.italic)
             })
         }
         prefs.edit().putString("items", arr.toString()).apply()
@@ -244,59 +259,70 @@ private fun TicketApp(context: Context) {
                 AppTab.DESIGN -> {
                     item {
                         val template = selected ?: templates.first()
-                        if (isLandscape) {
-                            Row(
-                                modifier = Modifier.fillParentMaxHeight().padding(horizontal = 12.dp, vertical = 4.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalAlignment = Alignment.Top
-                            ) {
-                                CardBlock(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                                    Text("Texto del ticket", fontWeight = FontWeight.SemiBold, color = Ink)
-                                    OutlinedTextField(
-                                        value = designText,
-                                        onValueChange = { value -> designText = value },
-                                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                                        placeholder = { Text("Escribí aquí el texto del ticket…") },
-                                        minLines = 1,
-                                        maxLines = Int.MAX_VALUE
-                                    )
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        OutlinedButton(onClick = { updateTemplate(templates, template.copy(content = designText), ::persist); notice = UsbEscPosPrinter.print(context, template.copy(content = designText, paperWidth = paperWidth)) }, modifier = Modifier.weight(1f)) {
-                                            Icon(Icons.Default.Print, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Imprimir")
-                                        }
-                                        Button(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.weight(1f)) {
-                                            Icon(Icons.Default.Save, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Guardar")
-                                        }
-                                    }
-                                }
-                                CardBlock(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                                    Text("Vista previa del ticket", fontWeight = FontWeight.SemiBold, color = Ink)
-                                    TicketTextPreview(text = designText, paperWidth = paperWidth, modifier = Modifier.weight(1f).fillMaxWidth())
-                                    Text("El tamaño de cada línea se ajusta al ancho del papel.", fontSize = 11.sp, color = Muted)
+                        val traditional = designMode == "Tradicional"
+                        Column(Modifier.fillMaxWidth().padding(horizontal = if (isLandscape) 12.dp else 16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Modo de diseño", fontWeight = FontWeight.SemiBold, color = Ink)
+                                Spacer(Modifier.weight(1f))
+                                SingleChoiceSegmentedButtonRow {
+                                    SegmentedButton(selected = !traditional, onClick = { designMode = "Ajuste automático" }, shape = SegmentedButtonDefaults.itemShape(0)) { Text("Automático", fontSize = 11.sp) }
+                                    SegmentedButton(selected = traditional, onClick = { designMode = "Tradicional" }, shape = SegmentedButtonDefaults.itemShape(1)) { Text("Tradicional", fontSize = 11.sp) }
                                 }
                             }
-                        } else {
-                            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                SectionHeading("Diseño", "Escribí el ticket respetando los saltos de línea")
+                            Spacer(Modifier.height(8.dp))
+                            if (traditional) {
                                 CardBlock {
-                                    OutlinedTextField(
-                                        value = designText,
-                                        onValueChange = { value -> designText = value },
-                                        modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp),
-                                        placeholder = { Text("Escribí aquí el texto del ticket…") },
-                                        label = { Text("Texto del ticket") },
-                                        minLines = 6,
-                                        maxLines = 12
-                                    )
-                                    Text("Vista previa del ticket", fontWeight = FontWeight.SemiBold, color = Ink)
-                                    TicketTextPreview(text = designText, paperWidth = paperWidth, modifier = Modifier.fillMaxWidth())
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text("Tamaño", fontSize = 12.sp, color = Ink)
+                                        Slider(value = traditionalFontSize.toFloat(), onValueChange = { traditionalFontSize = it.toInt() }, valueRange = 10f..40f, modifier = Modifier.weight(1f))
+                                        Text(traditionalFontSize.toString() + "sp", fontSize = 12.sp)
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        var fontMenu by remember { mutableStateOf(false) }
+                                        Box {
+                                            OutlinedButton(onClick = { fontMenu = true }) { Text(traditionalFont) }
+                                            DropdownMenu(expanded = fontMenu, onDismissRequest = { fontMenu = false }) {
+                                                listOf("Sans Serif", "Serif", "Monospace").forEach { f -> DropdownMenuItem(text = { Text(f) }, onClick = { traditionalFont = f; fontMenu = false }) }
+                                            }
+                                        }
+                                        var alignMenu by remember { mutableStateOf(false) }
+                                        Box {
+                                            OutlinedButton(onClick = { alignMenu = true }) { Text(traditionalAlignment) }
+                                            DropdownMenu(expanded = alignMenu, onDismissRequest = { alignMenu = false }) {
+                                                listOf("Izquierda", "Centro", "Derecha").forEach { a -> DropdownMenuItem(text = { Text(a) }, onClick = { traditionalAlignment = a; alignMenu = false }) }
+                                            }
+                                        }
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        FilterChip(selected = traditionalBold, onClick = { traditionalBold = !traditionalBold }, label = { Text("Negrita") })
+                                        FilterChip(selected = traditionalItalic, onClick = { traditionalItalic = !traditionalItalic }, label = { Text("Cursiva") })
+                                        FilterChip(selected = traditionalUnderline, onClick = { traditionalUnderline = !traditionalUnderline }, label = { Text("Subrayado") })
+                                    }
+                                }
+                            }
+                            if (isLandscape) {
+                                Row(Modifier.fillMaxWidth().heightIn(min = 280.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    CardBlock(Modifier.weight(1f)) {
+                                        Text("Texto del ticket", fontWeight = FontWeight.SemiBold, color = Ink)
+                                        OutlinedTextField(value = designText, onValueChange = { designText = it }, modifier = Modifier.weight(1f).fillMaxWidth(), placeholder = { Text("Escribí aquí el texto del ticket…") }, minLines = 1, maxLines = Int.MAX_VALUE)
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedButton(onClick = { val updated = template.copy(content = designText, designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = traditionalBold, underline = traditionalUnderline, italic = traditionalItalic, paperWidth = paperWidth); updateTemplate(templates, updated, ::persist); notice = UsbEscPosPrinter.print(context, updated) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Print, null); Spacer(Modifier.width(4.dp)); Text("Imprimir") }
+                                            Button(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Save, null); Spacer(Modifier.width(4.dp)); Text("Guardar") }
+                                        }
+                                    }
+                                    CardBlock(Modifier.weight(1f)) {
+                                        Text("Vista previa", fontWeight = FontWeight.SemiBold, color = Ink)
+                                        TicketTextPreview(designText, paperWidth, Modifier.weight(1f).fillMaxWidth(), !traditional, traditionalFontSize, traditionalFont, traditionalAlignment, traditionalBold, traditionalUnderline, traditionalItalic)
+                                    }
+                                }
+                            } else {
+                                CardBlock {
+                                    OutlinedTextField(value = designText, onValueChange = { designText = it }, modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp), placeholder = { Text("Escribí aquí el texto del ticket…") }, label = { Text("Texto del ticket") }, minLines = 5, maxLines = 12)
+                                    Text("Vista previa", fontWeight = FontWeight.SemiBold, color = Ink)
+                                    TicketTextPreview(designText, paperWidth, Modifier.fillMaxWidth(), !traditional, traditionalFontSize, traditionalFont, traditionalAlignment, traditionalBold, traditionalUnderline, traditionalItalic)
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        OutlinedButton(onClick = { updateTemplate(templates, template.copy(content = designText), ::persist); notice = UsbEscPosPrinter.print(context, template.copy(content = designText, paperWidth = paperWidth)) }, modifier = Modifier.weight(1f)) {
-                                            Icon(Icons.Default.Print, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Imprimir")
-                                        }
-                                        Button(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.weight(1f)) {
-                                            Icon(Icons.Default.Save, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Guardar como")
-                                        }
+                                        OutlinedButton(onClick = { val updated = template.copy(content = designText, designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = traditionalBold, underline = traditionalUnderline, italic = traditionalItalic, paperWidth = paperWidth); updateTemplate(templates, updated, ::persist); notice = UsbEscPosPrinter.print(context, updated) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Print, null); Spacer(Modifier.width(4.dp)); Text("Imprimir") }
+                                        Button(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Save, null); Spacer(Modifier.width(4.dp)); Text("Guardar como") }
                                     }
                                 }
                             }
@@ -353,11 +379,11 @@ private fun TicketApp(context: Context) {
                                         Text("${imageRotation}°", color = Muted)
                                     }
                                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Text("Brillo · ${imageBrightness.toInt()}", fontSize = 12.sp, color = Ink)
-                                        Slider(value = imageBrightness, onValueChange = { imageBrightness = it }, valueRange = -100f..100f, enabled = selectedImage != null)
-                                        Text("Contraste · ${imageContrast.toInt()}%", fontSize = 12.sp, color = Ink)
-                                        Slider(value = imageContrast, onValueChange = { imageContrast = it }, valueRange = 0f..200f, enabled = selectedImage != null)
-                                        TextButton(onClick = { imageBrightness = 0f; imageContrast = 100f }, enabled = selectedImage != null) { Text("Restablecer ajustes") }
+                                        Text("Brillo · ${brightnessControl.toInt()}", fontSize = 12.sp, color = Ink)
+                                        Slider(value = brightnessControl, onValueChange = { brightnessControl = it }, onValueChangeFinished = { imageBrightness = brightnessControl }, valueRange = -100f..100f, enabled = selectedImage != null)
+                                        Text("Contraste · ${contrastControl.toInt()}%", fontSize = 12.sp, color = Ink)
+                                        Slider(value = contrastControl, onValueChange = { contrastControl = it }, onValueChangeFinished = { imageContrast = contrastControl }, valueRange = 0f..200f, enabled = selectedImage != null)
+                                        TextButton(onClick = { brightnessControl = 0f; contrastControl = 100f; imageBrightness = 0f; imageContrast = 100f }, enabled = selectedImage != null) { Text("Restablecer ajustes") }
                                     }
                                     Button(onClick = {
                                         val uri = selectedImage
@@ -532,6 +558,7 @@ private fun TicketApp(context: Context) {
                         val created = TicketTemplate(
                             name = name,
                             content = if (activeTab == AppTab.DESIGN) designText else source?.content ?: ("Nombre del producto\n.\n" + SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())),
+                            designMode = if (activeTab == AppTab.DESIGN) designMode else source?.designMode ?: "Ajuste automático", fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = traditionalBold, underline = traditionalUnderline, italic = traditionalItalic,
                             paperWidth = paperWidth,
                             feedLines = source?.feedLines ?: 3,
                             cutAfterPrint = source?.cutAfterPrint ?: true
@@ -571,7 +598,7 @@ private fun TicketApp(context: Context) {
 
 
 @Composable
-private fun TicketTextPreview(text: String, paperWidth: Int, modifier: Modifier = Modifier) {
+private fun TicketTextPreview(text: String, paperWidth: Int, modifier: Modifier = Modifier, autoFit: Boolean = true, fontSize: Int = 24, fontFamilyName: String = "Sans Serif", alignment: String = "Izquierda", bold: Boolean = false, underline: Boolean = false, italic: Boolean = false) {
     val density = androidx.compose.ui.platform.LocalDensity.current.density
     val lines = text.replace("\r\n", "\n").replace('\r', '\n').split("\n")
     val baseTextPx = if (paperWidth <= 58) 28f else 34f
@@ -591,14 +618,17 @@ private fun TicketTextPreview(text: String, paperWidth: Int, modifier: Modifier 
             } else {
                 paint.textSize = baseTextPx
                 val measured = paint.measureText(line).coerceAtLeast(1f)
-                val scaledPx = (baseTextPx * (previewWidth - 20f) / measured).coerceAtLeast(8f)
+                val scaledPx = if (autoFit) (baseTextPx * (previewWidth - 20f) / measured).coerceAtLeast(8f) else fontSize * density
+                val family = when (fontFamilyName) { "Serif" -> FontFamily.Serif; "Monospace" -> FontFamily.Monospace; else -> FontFamily.SansSerif }
+                val align = when (alignment) { "Centro" -> TextAlign.Center; "Derecha" -> TextAlign.End; else -> TextAlign.Start }
                 Text(
-                    text = line,
-                    color = Color.Black,
-                    fontSize = (scaledPx / density).sp,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier.fillMaxWidth()
+                    text = line, color = Color.Black,
+                    fontSize = if (autoFit) (scaledPx / density).sp else fontSize.sp,
+                    fontFamily = family,
+                    fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+                    fontStyle = if (italic) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
+                    textDecoration = if (underline) androidx.compose.ui.text.style.TextDecoration.Underline else androidx.compose.ui.text.style.TextDecoration.None,
+                    textAlign = align, maxLines = 1, softWrap = false, modifier = Modifier.fillMaxWidth()
                 )
             }
         }
