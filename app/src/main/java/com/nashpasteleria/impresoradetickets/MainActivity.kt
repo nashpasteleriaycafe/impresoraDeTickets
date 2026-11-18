@@ -360,6 +360,8 @@ private fun TicketApp(context: Context) {
                         IconButton(onClick = { applyFormatting("bold") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatBold, "Negrita", tint = Ink, modifier = Modifier.size(20.dp)) }
                         IconButton(onClick = { applyFormatting("italic") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatItalic, "Cursiva", tint = Ink, modifier = Modifier.size(20.dp)) }
                         IconButton(onClick = { applyFormatting("underline") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatUnderlined, "Subrayado", tint = Ink, modifier = Modifier.size(20.dp)) }
+                        TextButton(onClick = { richEditorState.toggleUnorderedList() }, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)) { Text("• Lista", fontSize = 11.sp) }
+                        TextButton(onClick = { richEditorState.toggleOrderedList() }, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)) { Text("1. Lista", fontSize = 11.sp) }
                         VerticalDivider(Modifier.height(26.dp), color = Line)
                         IconButton(onClick = {
                             val updated = template.copy(content = richEditorState.toHtml(), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = false, underline = false, italic = false, paperWidth = paperWidth)
