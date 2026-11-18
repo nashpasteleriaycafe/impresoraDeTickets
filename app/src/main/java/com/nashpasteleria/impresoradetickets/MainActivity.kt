@@ -155,7 +155,12 @@ private fun TicketApp(context: Context) {
                     ))
                 }
             }
-            if (isEmpty()) add(TicketTemplate(name = "Plantilla en blanco", content = ""))
+            if (isEmpty()) {
+                add(TicketTemplate(name = "Plantilla en blanco", content = ""))
+            } else if (none { it.name == "Plantilla en blanco" && it.content.isBlank() }) {
+                // Always open a fresh, empty ticket on launch without replacing saved user templates.
+                add(0, TicketTemplate(name = "Plantilla en blanco", content = ""))
+            }
         }
     }
     var selectedId by remember { mutableStateOf(templates.first().id) }
