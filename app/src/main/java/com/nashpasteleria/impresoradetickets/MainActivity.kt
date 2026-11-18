@@ -774,7 +774,13 @@ private fun TicketApp(context: Context) {
                             Button(onClick = {
                                 val testContent = """
                                     <p align="left"><font face="sans-serif" size="7"><b>PÁGINA DE PRUEBA</b></font></p>
-                                    <p align="left"><font face="sans-serif" size="2">Sans Serif · pequeño · normal</font></p>
+                                    <p align="left"><font face="sans-serif" size="1">Tamaño 1 · muy pequeño</font></p>
+                                    <p align="left"><font face="sans-serif" size="2">Tamaño 2 · pequeño</font></p>
+                                    <p align="left"><font face="sans-serif" size="3">Tamaño 3 · normal</font></p>
+                                    <p align="left"><font face="sans-serif" size="4">Tamaño 4 · medio</font></p>
+                                    <p align="left"><font face="sans-serif" size="5">Tamaño 5 · grande</font></p>
+                                    <p align="left"><font face="sans-serif" size="6">Tamaño 6 · muy grande</font></p>
+                                    <p align="left"><font face="sans-serif" size="7"><b>Tamaño 7 · máximo</b></font></p>
                                     <p align="center"><font face="serif" size="5"><b>Serif · grande · negrita</b></font></p>
                                     <p align="right"><tt><font size="4"><i>Monospace · cursiva</i></font></tt></p>
                                     <p align="left"><font face="sans-serif" size="3"><u>Subrayado · tamaño medio</u></font></p>
