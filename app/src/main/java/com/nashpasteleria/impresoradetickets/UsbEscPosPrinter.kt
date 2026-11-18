@@ -27,14 +27,24 @@ object UsbEscPosPrinter {
         val margin = 12f
         val availableWidth = width - margin * 2
         val lines = template.content.replace("\r\n", "\n").replace('\r', '\n').split("\n")
+        val autoFit = template.designMode != "Tradicional"
         val baseSize = 30f
+        val style = (if (template.bold) android.graphics.Typeface.BOLD else 0) or
+            (if (template.italic) android.graphics.Typeface.ITALIC else 0)
+        val family = when (template.fontFamily) {
+            "Serif" -> android.graphics.Typeface.SERIF
+            "Monospace" -> android.graphics.Typeface.MONOSPACE
+            else -> android.graphics.Typeface.SANS_SERIF
+        }
         val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.BLACK
-            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
+            typeface = android.graphics.Typeface.create(family, style)
             textAlign = android.graphics.Paint.Align.LEFT
+            isUnderlineText = template.underline
         }
         val sizes = lines.map { line ->
             if (line.isEmpty()) 24f
+            else if (!autoFit) template.fontSize.toFloat().coerceIn(10f, 80f)
             else {
                 paint.textSize = baseSize
                 val measured = paint.measureText(line).coerceAtLeast(1f)
@@ -50,8 +60,14 @@ object UsbEscPosPrinter {
         lines.forEachIndexed { index, line ->
             val size = sizes[index]
             paint.textSize = size
+            val measured = paint.measureText(line)
+            val x = when (template.alignment) {
+                "Centro" -> (width - measured) / 2f
+                "Derecha" -> width - margin - measured
+                else -> margin
+            }
             val baseline = y - paint.fontMetrics.ascent
-            if (line.isNotEmpty()) canvas.drawText(line, margin, baseline, paint)
+            if (line.isNotEmpty()) canvas.drawText(line, x.coerceAtLeast(0f), baseline, paint)
             y += heights[index]
         }
         return bitmap
