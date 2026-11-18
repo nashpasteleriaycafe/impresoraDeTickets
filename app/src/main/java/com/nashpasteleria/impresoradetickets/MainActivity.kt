@@ -192,22 +192,22 @@ private fun TicketApp(context: Context) {
     var traditionalUnderline by remember(selected?.id) { mutableStateOf(selected?.underline ?: false) }
     var traditionalItalic by remember(selected?.id) { mutableStateOf(selected?.italic ?: false) }
 
-    fun selectedLineRanges(): List<IntRange> {
+    fun selectedLineRanges(): List<Pair<Int, Int>> {
         val text = designValue.text
         if (text.isEmpty()) return emptyList()
         val selection = designValue.selection
         val first = selection.min.coerceIn(0, text.length)
         val last = (if (selection.collapsed) first else (selection.max - 1).coerceAtLeast(first)).coerceIn(0, text.length)
-        val ranges = mutableListOf<IntRange>()
-        var lineStart = text.lastIndexOf('\n', (first - 1).coerceAtLeast(0)).let { if (first == 0) 0 else it + 1 }
+        val ranges = mutableListOf<Pair<Int, Int>>()
+        var lineStart = if (first == 0) 0 else text.lastIndexOf('\n', first - 1) + 1
         while (lineStart <= last) {
             val nextBreak = text.indexOf('\n', lineStart)
             val lineEnd = if (nextBreak < 0) text.length else nextBreak
-            ranges.add(lineStart until lineEnd.coerceAtLeast(lineStart + 1).coerceAtMost(text.length))
+            if (lineStart < lineEnd) ranges.add(lineStart to lineEnd)
             if (nextBreak < 0 || nextBreak >= last) break
             lineStart = nextBreak + 1
         }
-        return ranges.filter { it.first < it.last || (text.isEmpty() && it.first == 0) }
+        return ranges
     }
 
     fun applyLineFormatting(kind: String, value: String) {
@@ -224,16 +224,17 @@ private fun TicketApp(context: Context) {
                     else -> TextAlign.Start
                 }
                 ranges.forEach { range ->
-                    builder.addStyle(ParagraphStyle(textAlign = alignment), range.first, range.last)
+                    val paragraphEnd = if (range.second < annotated.length) range.second + 1 else range.second
+                    builder.addStyle(ParagraphStyle(textAlign = alignment), range.first, paragraphEnd)
                 }
                 traditionalAlignment = value
             }
             "size" -> ranges.forEach { range ->
-                builder.addStyle(SpanStyle(fontSize = (traditionalFontSize * ticketPreviewScale).sp), range.first, range.last)
+                builder.addStyle(SpanStyle(fontSize = (traditionalFontSize * ticketPreviewScale).sp), range.first, range.second)
             }
             "font" -> {
                 val family = when (value) { "Serif" -> FontFamily.Serif; "Monospace" -> FontFamily.Monospace; else -> FontFamily.SansSerif }
-                ranges.forEach { range -> builder.addStyle(SpanStyle(fontFamily = family), range.first, range.last) }
+                ranges.forEach { range -> builder.addStyle(SpanStyle(fontFamily = family), range.first, range.second) }
             }
         }
         designValue = TextFieldValue(builder.toAnnotatedString(), designValue.selection)
