@@ -406,11 +406,11 @@ private fun TicketApp(context: Context) {
                                 }
                                 Text(selectedImage?.lastPathSegment ?: "Todavía no elegiste una imagen", fontSize = 12.sp, color = Muted)
                                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    Text("Brillo · ${imageBrightness.toInt()}", fontSize = 12.sp, color = Ink)
-                                    Slider(value = imageBrightness, onValueChange = { imageBrightness = it }, valueRange = -100f..100f, enabled = selectedImage != null)
-                                    Text("Contraste · ${imageContrast.toInt()}%", fontSize = 12.sp, color = Ink)
-                                    Slider(value = imageContrast, onValueChange = { imageContrast = it }, valueRange = 0f..200f, enabled = selectedImage != null)
-                                    TextButton(onClick = { imageBrightness = 0f; imageContrast = 100f }, enabled = selectedImage != null) { Text("Restablecer ajustes") }
+                                    Text("Brillo · ${brightnessControl.toInt()}", fontSize = 12.sp, color = Ink)
+                                    Slider(value = brightnessControl, onValueChange = { brightnessControl = it }, onValueChangeFinished = { imageBrightness = brightnessControl }, valueRange = -100f..100f, enabled = selectedImage != null)
+                                    Text("Contraste · ${contrastControl.toInt()}%", fontSize = 12.sp, color = Ink)
+                                    Slider(value = contrastControl, onValueChange = { contrastControl = it }, onValueChangeFinished = { imageContrast = contrastControl }, valueRange = 0f..200f, enabled = selectedImage != null)
+                                    TextButton(onClick = { brightnessControl = 0f; contrastControl = 100f; imageBrightness = 0f; imageContrast = 100f }, enabled = selectedImage != null) { Text("Restablecer ajustes") }
                                 }
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     OutlinedButton(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp)) { Icon(Icons.Default.Add, contentDescription = null); Spacer(Modifier.width(4.dp)); Text("Elegir", fontSize = 12.sp) }
