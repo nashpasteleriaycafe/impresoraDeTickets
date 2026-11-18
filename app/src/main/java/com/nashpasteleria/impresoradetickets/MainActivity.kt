@@ -361,7 +361,7 @@ private fun TicketApp(context: Context) {
                         IconButton(onClick = { applyFormatting("underline") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatUnderlined, "Subrayado", tint = Ink, modifier = Modifier.size(20.dp)) }
                         VerticalDivider(Modifier.height(26.dp), color = Line)
                         IconButton(onClick = {
-                            val updated = template.copy(content = richEditorState.toHtml(), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, paperWidth = paperWidth)
+                            val updated = template.copy(content = richEditorState.toHtml(), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = false, underline = false, italic = false, paperWidth = paperWidth)
                             updateTemplate(templates, updated, ::persist)
                             notice = UsbEscPosPrinter.print(context, updated)
                         }, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Print, "Imprimir", tint = RoseDark, modifier = Modifier.size(20.dp)) }
@@ -484,12 +484,12 @@ private fun TicketApp(context: Context) {
                                     formatButton(traditionalAlignment == "Centro", "Centrar", { applyLineFormatting("alignment", "Centro") }, Icons.Default.FormatAlignCenter)
                                     formatButton(traditionalAlignment == "Derecha", "Alinear a la derecha", { applyLineFormatting("alignment", "Derecha") }, Icons.Default.FormatAlignRight)
                                     VerticalDivider(Modifier.height(28.dp), color = Line)
-                                    formatButton(traditionalBold, "Negrita", { traditionalBold = !traditionalBold; applyFormatting("bold") }, Icons.Default.FormatBold)
-                                    formatButton(traditionalItalic, "Cursiva", { traditionalItalic = !traditionalItalic; applyFormatting("italic") }, Icons.Default.FormatItalic)
-                                    formatButton(traditionalUnderline, "Subrayado", { traditionalUnderline = !traditionalUnderline; applyFormatting("underline") }, Icons.Default.FormatUnderlined)
+                                    formatButton(richEditorState.currentSpanStyle.fontWeight == FontWeight.Bold, "Negrita", { applyFormatting("bold") }, Icons.Default.FormatBold)
+                                    formatButton(richEditorState.currentSpanStyle.fontStyle == androidx.compose.ui.text.font.FontStyle.Italic, "Cursiva", { applyFormatting("italic") }, Icons.Default.FormatItalic)
+                                    formatButton(richEditorState.currentSpanStyle.textDecoration == androidx.compose.ui.text.style.TextDecoration.Underline, "Subrayado", { applyFormatting("underline") }, Icons.Default.FormatUnderlined)
                                     VerticalDivider(Modifier.height(28.dp), color = Line)
                                     IconButton(onClick = {
-                                        val updated = template.copy(content = richEditorState.toHtml(), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = traditionalBold, underline = traditionalUnderline, italic = traditionalItalic, paperWidth = paperWidth)
+                                        val updated = template.copy(content = richEditorState.toHtml(), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = false, underline = false, italic = false, paperWidth = paperWidth)
                                         updateTemplate(templates, updated, ::persist)
                                         notice = UsbEscPosPrinter.print(context, updated)
                                     }, modifier = Modifier.size(38.dp)) { Icon(Icons.Default.Print, contentDescription = "Imprimir", tint = RoseDark) }
@@ -813,7 +813,7 @@ private fun TicketApp(context: Context) {
                         val created = TicketTemplate(
                             name = name,
                             content = if (activeTab == AppTab.DESIGN) { if (designMode == "Tradicional") richEditorState.toHtml() else serializeRichText(designValue.annotatedString, ticketPreviewScale) } else source?.content ?: "",
-                            designMode = if (activeTab == AppTab.DESIGN) designMode else source?.designMode ?: "Ajuste automático", fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = traditionalBold, underline = traditionalUnderline, italic = traditionalItalic,
+                            designMode = if (activeTab == AppTab.DESIGN) designMode else source?.designMode ?: "Ajuste automático", fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = if (designMode == "Tradicional") false else traditionalBold, underline = if (designMode == "Tradicional") false else traditionalUnderline, italic = if (designMode == "Tradicional") false else traditionalItalic,
                             paperWidth = paperWidth,
                             feedLines = source?.feedLines ?: 3,
                             cutAfterPrint = source?.cutAfterPrint ?: true
