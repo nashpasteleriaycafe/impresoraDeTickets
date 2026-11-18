@@ -62,6 +62,8 @@ object UsbEscPosPrinter {
     }
 
     private fun renderTicketText(template: TicketTemplate): Bitmap {
+        // Traditional mode uses StaticLayout over parsed Spanned HTML so font size and family spans are honored.
+        if (template.designMode == "Tradicional") return renderTraditionalTicketText(template)
         val width = if (template.paperWidth <= 58) 384 else 576
         val margin = 12f
         val availableWidth = width - margin * 2
