@@ -182,7 +182,8 @@ private fun TicketApp(context: Context) {
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) { selectedImage = uri; imageRotation = 0 } }
     val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) selectedPdf = uri }
     val selected = templates.firstOrNull { it.id == selectedId } ?: templates.firstOrNull()
-    var designValue by remember(selected?.id) { mutableStateOf(TextFieldValue(selected?.content?.let(::ticketContentToAnnotatedString) ?: AnnotatedString(""))) }
+    val ticketPreviewScale = minOf(if (paperWidth <= 58) 240 else 320, configuration.screenWidthDp - 32).coerceAtLeast(180).toFloat() / (if (paperWidth <= 58) 384f else 576f)
+    var designValue by remember(selected?.id) { mutableStateOf(TextFieldValue(selected?.content?.let { ticketContentToAnnotatedString(it, ticketPreviewScale) } ?: AnnotatedString(""))) }
     val designText = designValue.text
     var designMode by remember(selected?.id) { mutableStateOf(selected?.designMode ?: "Ajuste automático") }
     var traditionalFontSize by remember(selected?.id) { mutableIntStateOf(selected?.fontSize ?: 24) }
@@ -213,7 +214,7 @@ private fun TicketApp(context: Context) {
             "bold" -> selectedSpan.copy(fontWeight = if (selectedSpan.fontWeight == FontWeight.Bold) FontWeight.Normal else FontWeight.Bold)
             "italic" -> selectedSpan.copy(fontStyle = if (selectedSpan.fontStyle == androidx.compose.ui.text.font.FontStyle.Italic) androidx.compose.ui.text.font.FontStyle.Normal else androidx.compose.ui.text.font.FontStyle.Italic)
             "underline" -> selectedSpan.copy(textDecoration = if (selectedSpan.textDecoration == androidx.compose.ui.text.style.TextDecoration.Underline) androidx.compose.ui.text.style.TextDecoration.None else androidx.compose.ui.text.style.TextDecoration.Underline)
-            "size" -> selectedSpan.copy(fontSize = traditionalFontSize.sp)
+            "size" -> selectedSpan.copy(fontSize = (traditionalFontSize * ticketPreviewScale).sp)
             "font" -> selectedSpan.copy(fontFamily = when (traditionalFont) { "Serif" -> FontFamily.Serif; "Monospace" -> FontFamily.Monospace; else -> FontFamily.SansSerif })
             else -> selectedSpan
         }
@@ -867,7 +868,7 @@ private fun TicketTextPreview(text: String, paperWidth: Int, modifier: Modifier 
     }
 }
 
-private fun ticketContentToAnnotatedString(content: String): AnnotatedString {
+private fun ticketContentToAnnotatedString(content: String, sizeScale: Float = 1f): AnnotatedString {
     if (!content.contains("<") || !content.contains(">")) return AnnotatedString(content)
     val spanned = android.text.Html.fromHtml(content, android.text.Html.FROM_HTML_MODE_LEGACY)
     val builder = AnnotatedString.Builder(spanned.toString())
@@ -882,8 +883,8 @@ private fun ticketContentToAnnotatedString(content: String): AnnotatedString {
                 fontStyle = if (span.style and android.graphics.Typeface.ITALIC != 0) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
             )
             is android.text.style.UnderlineSpan -> SpanStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline)
-            is android.text.style.AbsoluteSizeSpan -> SpanStyle(fontSize = span.size.sp)
-            is android.text.style.RelativeSizeSpan -> SpanStyle(fontSize = (18f * span.sizeChange).sp)
+            is android.text.style.AbsoluteSizeSpan -> SpanStyle(fontSize = (span.size * sizeScale).sp)
+            is android.text.style.RelativeSizeSpan -> SpanStyle(fontSize = (18f * span.sizeChange * sizeScale).sp)
             is android.text.style.TypefaceSpan -> SpanStyle(fontFamily = when (span.family) { "serif" -> FontFamily.Serif; "monospace" -> FontFamily.Monospace; else -> FontFamily.SansSerif })
             else -> null
         }
