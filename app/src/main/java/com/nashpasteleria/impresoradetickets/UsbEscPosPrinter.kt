@@ -171,7 +171,7 @@ object UsbEscPosPrinter {
         val margin = 12
         val source = template.content
         val parsed = if (source.contains("<", true) && source.contains(">", true)) {
-            android.text.Html.fromHtml(source, android.text.Html.FROM_HTML_MODE_LEGACY)
+            android.text.Html.fromHtml(normalizeRichHtml(source), android.text.Html.FROM_HTML_MODE_LEGACY)
         } else android.text.SpannedString(source)
         val rich = android.text.SpannableStringBuilder(parsed)
         val family = when (template.fontFamily) {
