@@ -242,32 +242,64 @@ private fun TicketApp(context: Context) {
         ) {
             when (activeTab) {
                 AppTab.DESIGN -> {
-                    item { SectionHeading("Diseño", "Escribí el ticket respetando los saltos de línea") }
                     item {
-                        CardBlock {
-                            val template = selected ?: templates.first()
-                            OutlinedTextField(
-                                value = designText,
-                                onValueChange = { value -> designText = value },
-                                modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp),
-                                placeholder = { Text("Escribí aquí el texto del ticket…") },
-                                label = { Text("Texto del ticket") },
-                                minLines = 8,
-                                maxLines = 18
-                            )
-                            Spacer(Modifier.height(10.dp))
-                            Text("Vista previa del ticket", fontWeight = FontWeight.SemiBold, color = Ink)
-                            TicketTextPreview(text = designText, paperWidth = paperWidth, modifier = Modifier.fillMaxWidth())
-
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(onClick = { updateTemplate(templates, template.copy(content = designText), ::persist); notice = UsbEscPosPrinter.print(context, template.copy(content = designText, paperWidth = paperWidth)) }, modifier = Modifier.weight(1f)) {
-                                    Icon(Icons.Default.Print, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Imprimir")
+                        val template = selected ?: templates.first()
+                        if (isLandscape) {
+                            Row(
+                                modifier = Modifier.fillParentMaxHeight().padding(horizontal = 12.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                CardBlock(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                                    Text("Texto del ticket", fontWeight = FontWeight.SemiBold, color = Ink)
+                                    OutlinedTextField(
+                                        value = designText,
+                                        onValueChange = { value -> designText = value },
+                                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                                        placeholder = { Text("Escribí aquí el texto del ticket…") },
+                                        minLines = 1,
+                                        maxLines = Int.MAX_VALUE
+                                    )
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedButton(onClick = { updateTemplate(templates, template.copy(content = designText), ::persist); notice = UsbEscPosPrinter.print(context, template.copy(content = designText, paperWidth = paperWidth)) }, modifier = Modifier.weight(1f)) {
+                                            Icon(Icons.Default.Print, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Imprimir")
+                                        }
+                                        Button(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.weight(1f)) {
+                                            Icon(Icons.Default.Save, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Guardar")
+                                        }
+                                    }
                                 }
-                                Button(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.weight(1f)) {
-                                    Icon(Icons.Default.Save, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Guardar como")
+                                CardBlock(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                                    Text("Vista previa del ticket", fontWeight = FontWeight.SemiBold, color = Ink)
+                                    TicketTextPreview(text = designText, paperWidth = paperWidth, modifier = Modifier.weight(1f).fillMaxWidth())
+                                    Text("El tamaño de cada línea se ajusta al ancho del papel.", fontSize = 11.sp, color = Muted)
                                 }
                             }
-                            Text("Cada línea se ajustará automáticamente al ancho del ticket al imprimir.", fontSize = 11.sp, color = Muted)
+                        } else {
+                            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                SectionHeading("Diseño", "Escribí el ticket respetando los saltos de línea")
+                                CardBlock {
+                                    OutlinedTextField(
+                                        value = designText,
+                                        onValueChange = { value -> designText = value },
+                                        modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp),
+                                        placeholder = { Text("Escribí aquí el texto del ticket…") },
+                                        label = { Text("Texto del ticket") },
+                                        minLines = 6,
+                                        maxLines = 12
+                                    )
+                                    Text("Vista previa del ticket", fontWeight = FontWeight.SemiBold, color = Ink)
+                                    TicketTextPreview(text = designText, paperWidth = paperWidth, modifier = Modifier.fillMaxWidth())
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedButton(onClick = { updateTemplate(templates, template.copy(content = designText), ::persist); notice = UsbEscPosPrinter.print(context, template.copy(content = designText, paperWidth = paperWidth)) }, modifier = Modifier.weight(1f)) {
+                                            Icon(Icons.Default.Print, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Imprimir")
+                                        }
+                                        Button(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.weight(1f)) {
+                                            Icon(Icons.Default.Save, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Guardar como")
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -541,7 +573,7 @@ private fun TicketApp(context: Context) {
 @Composable
 private fun TicketTextPreview(text: String, paperWidth: Int, modifier: Modifier = Modifier) {
     val density = androidx.compose.ui.platform.LocalDensity.current.density
-    val lines = text.replace("\\r\\n", "\\n").replace('\\r', '\\n').split("\\n")
+    val lines = text.replace("\r\n", "\n").replace('\r', '\n').split("\n")
     val baseTextPx = if (paperWidth <= 58) 28f else 34f
     val previewWidth = if (paperWidth <= 58) 384f else 576f
     val paint = remember { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG) }
@@ -550,7 +582,7 @@ private fun TicketTextPreview(text: String, paperWidth: Int, modifier: Modifier 
             .border(1.dp, Line, RoundedCornerShape(8.dp))
             .background(Color.White)
             .padding(horizontal = 8.dp, vertical = 6.dp)
-            .heightIn(max = 320.dp)
+            .fillMaxHeight()
             .verticalScroll(rememberScrollState())
     ) {
         lines.forEach { line ->
