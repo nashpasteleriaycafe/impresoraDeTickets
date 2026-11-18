@@ -16,6 +16,45 @@ import java.nio.charset.Charset
 object UsbEscPosPrinter {
     private const val ACTION_USB_PERMISSION = "com.nashpasteleria.impresoradetickets.USB_PERMISSION"
 
+    private fun normalizeRichHtml(source: String): String {
+        val spanPattern = Regex("""<span\b([^>]*)>""", RegexOption.IGNORE_CASE)
+        var html = spanPattern.replace(source) { match ->
+            val attributes = match.groupValues[1]
+            val style = Regex("""style\s*=\s*["']([^"']*)["']""", RegexOption.IGNORE_CASE)
+                .find(attributes)?.groupValues?.get(1).orEmpty()
+            val family = Regex("""font-family\s*:\s*([^;]+)""", RegexOption.IGNORE_CASE)
+                .find(style)?.groupValues?.get(1)?.trim()?.trim('"', '\'')
+            val pxSize = Regex("""font-size\s*:\s*([0-9.]+)\s*(px|pt|sp)?""", RegexOption.IGNORE_CASE)
+                .find(style)?.groupValues?.get(1)?.toFloatOrNull()
+            val htmlSize = pxSize?.let { size ->
+                when {
+                    size < 12f -> 2
+                    size < 14f -> 3
+                    size < 16f -> 4
+                    size < 20f -> 5
+                    size < 28f -> 6
+                    else -> 7
+                }
+            }
+            buildString {
+                append("<font")
+                if (!family.isNullOrBlank()) append(" face=\"" + family.replace("\"", "") + "\"")
+                if (htmlSize != null) append(" size=\"" + htmlSize + "\"")
+                append(">")
+            }
+        }
+        html = html.replace(Regex("""</span\s*>""", RegexOption.IGNORE_CASE), "</font>")
+        html = Regex("""<p\b([^>]*)>""", RegexOption.IGNORE_CASE).replace(html) { match ->
+            val attributes = match.groupValues[1]
+            val alignment = Regex("""text-align\s*:\s*(left|center|right|justify)""", RegexOption.IGNORE_CASE)
+                .find(attributes)?.groupValues?.get(1)?.lowercase()
+            if (alignment != null && !Regex("""\balign\s*=""", RegexOption.IGNORE_CASE).containsMatchIn(attributes)) {
+                "<p" + attributes + " align=\"" + alignment + "\">"
+            } else match.value
+        }
+        return html
+    }
+
     fun print(context: Context, template: TicketTemplate): String {
         // Raster text makes line breaks and per-line sizing deterministic across ESC/POS printers.
         val ticket = renderTicketText(template)
@@ -29,7 +68,7 @@ object UsbEscPosPrinter {
         val availableWidth = width - margin * 2
         val source = template.content
         val rich = if (source.contains("<b", true) || source.contains("<i", true) || source.contains("<u", true) || source.contains("<span", true) || source.contains("<br", true)) {
-            android.text.Html.fromHtml(source, android.text.Html.FROM_HTML_MODE_LEGACY)
+            android.text.Html.fromHtml(normalizeRichHtml(source), android.text.Html.FROM_HTML_MODE_LEGACY)
         } else android.text.SpannableString(source)
         val text = rich.toString().replace("\r\n", "\n").replace('\r', '\n')
         val lines = text.split("\n")
