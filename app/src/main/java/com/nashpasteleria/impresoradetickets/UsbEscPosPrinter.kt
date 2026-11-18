@@ -23,6 +23,7 @@ object UsbEscPosPrinter {
     }
 
     private fun renderTicketText(template: TicketTemplate): Bitmap {
+        if (template.designMode == "Tradicional") return renderTraditionalTicketText(template)
         val width = if (template.paperWidth <= 58) 384 else 576
         val margin = 12f
         val availableWidth = width - margin * 2
@@ -121,6 +122,63 @@ object UsbEscPosPrinter {
             }
             y += heights[lineIndex]
         }
+        return bitmap
+    }
+
+
+    /** Traditional editor output: wrap to the physical print width and honor paragraph alignment. */
+    private fun renderTraditionalTicketText(template: TicketTemplate): Bitmap {
+        val width = if (template.paperWidth <= 58) 384 else 576
+        val margin = 12
+        val source = template.content
+        val parsed = if (source.contains("<", true) && source.contains(">", true)) {
+            android.text.Html.fromHtml(source, android.text.Html.FROM_HTML_MODE_LEGACY)
+        } else android.text.SpannedString(source)
+        val rich = android.text.SpannableStringBuilder(parsed)
+        val family = when (template.fontFamily) {
+            "Serif" -> android.graphics.Typeface.SERIF
+            "Monospace" -> android.graphics.Typeface.MONOSPACE
+            else -> android.graphics.Typeface.SANS_SERIF
+        }
+        val style = (if (template.bold) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL) or
+            (if (template.italic) android.graphics.Typeface.ITALIC else 0)
+        val paint = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.BLACK
+            textSize = template.fontSize.toFloat().coerceIn(8f, 80f)
+            typeface = android.graphics.Typeface.create(family, style)
+            isUnderlineText = template.underline
+        }
+        if (rich.isNotEmpty()) {
+            if (template.bold) rich.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, rich.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            if (template.italic) rich.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.ITALIC), 0, rich.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            if (template.underline) rich.setSpan(android.text.style.UnderlineSpan(), 0, rich.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        val alignment = when (template.alignment) {
+            "Centro" -> android.text.Layout.Alignment.ALIGN_CENTER
+            "Derecha" -> android.text.Layout.Alignment.ALIGN_OPPOSITE
+            else -> android.text.Layout.Alignment.ALIGN_NORMAL
+        }
+        val builder = android.text.StaticLayout.Builder.obtain(rich, 0, rich.length, paint, (width - margin * 2).coerceAtLeast(1))
+            .setAlignment(alignment)
+            .setIncludePad(false)
+            .setLineSpacing(0f, 1.12f)
+            .setBreakStrategy(android.text.Layout.BREAK_STRATEGY_SIMPLE)
+            .setHyphenationFrequency(android.text.Layout.HYPHENATION_FREQUENCY_NONE)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            builder.setJustificationMode(
+                if (template.alignment == "Justificado") android.text.Layout.JUSTIFICATION_MODE_INTER_WORD
+                else android.text.Layout.JUSTIFICATION_MODE_NONE
+            )
+        }
+        val layout = builder.build()
+        val height = (layout.height + 12).coerceAtLeast(24)
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        canvas.drawColor(android.graphics.Color.WHITE)
+        canvas.save()
+        canvas.translate(margin.toFloat(), 6f)
+        layout.draw(canvas)
+        canvas.restore()
         return bitmap
     }
 
