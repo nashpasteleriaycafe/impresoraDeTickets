@@ -542,7 +542,7 @@ private fun TicketApp(context: Context) {
                                         }
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             OutlinedButton(onClick = {
-                                                val updated = template.copy(content = richEditorState.toHtml(), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = traditionalBold, underline = traditionalUnderline, italic = traditionalItalic, paperWidth = paperWidth)
+                                                val updated = template.copy(content = richEditorState.toHtml(), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = false, underline = false, italic = false, paperWidth = paperWidth)
                                                 updateTemplate(templates, updated, ::persist)
                                                 notice = UsbEscPosPrinter.print(context, updated)
                                             }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Print, null); Spacer(Modifier.width(4.dp)); Text("Imprimir") }
