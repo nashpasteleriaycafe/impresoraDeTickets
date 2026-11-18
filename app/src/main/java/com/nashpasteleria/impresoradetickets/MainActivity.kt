@@ -64,6 +64,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -348,20 +354,54 @@ private fun TicketApp(context: Context) {
                     }
                 }
                 if (traditional) {
-                    CardBlock(Modifier.fillMaxWidth().weight(1f)) {
-                        BasicTextField(
-                            value = designValue,
-                            onValueChange = { designValue = it },
-                            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-                            textStyle = androidx.compose.ui.text.TextStyle(color = Ink, fontSize = 18.sp, fontFamily = FontFamily.SansSerif),
-                            cursorBrush = androidx.compose.ui.graphics.SolidColor(RoseDark),
-                            decorationBox = { inner ->
-                                Box(Modifier.fillMaxSize().padding(8.dp)) {
-                                    if (designValue.text.isEmpty()) Text("Escribí el ticket. Seleccioná una palabra o frase para aplicar formato…", color = Muted, fontSize = 16.sp)
-                                    inner()
+                    val printerDots = if (paperWidth <= 58) 384f else 576f
+                    val paperDisplayWidth = minOf(if (paperWidth <= 58) 240 else 320, configuration.screenWidthDp - 32).coerceAtLeast(180).dp
+                    val editorFontSize = (traditionalFontSize * (paperDisplayWidth.value / printerDots)).coerceAtLeast(8f).sp
+                    val editorFontFamily = when (traditionalFont) { "Serif" -> FontFamily.Serif; "Monospace" -> FontFamily.Monospace; else -> FontFamily.SansSerif }
+                    val editorAlignment = when (traditionalAlignment) {
+                        "Centro" -> TextAlign.Center
+                        "Derecha" -> TextAlign.End
+                        "Justificado" -> TextAlign.Justify
+                        else -> TextAlign.Start
+                    }
+                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.TopCenter) {
+                        Card(
+                            Modifier.width(paperDisplayWidth).fillMaxHeight(),
+                            shape = RoundedCornerShape(3.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                        ) {
+                            BasicTextField(
+                                value = designValue,
+                                onValueChange = { designValue = it },
+                                modifier = Modifier.fillMaxSize()
+                                    .verticalScroll(rememberScrollState())
+                                    .onPreviewKeyEvent { event ->
+                                        if (event.type == KeyEventType.KeyDown && event.isCtrlPressed) {
+                                            when (event.key) {
+                                                Key.B -> { applyFormatting("bold"); true }
+                                                Key.I -> { applyFormatting("italic"); true }
+                                                Key.U -> { applyFormatting("underline"); true }
+                                                else -> false
+                                            }
+                                        } else false
+                                    },
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    color = Ink,
+                                    fontSize = editorFontSize,
+                                    fontFamily = editorFontFamily,
+                                    textAlign = editorAlignment,
+                                    lineHeight = (editorFontSize.value * 1.22f).sp
+                                ),
+                                cursorBrush = androidx.compose.ui.graphics.SolidColor(RoseDark),
+                                decorationBox = { inner ->
+                                    Box(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 7.dp)) {
+                                        if (designValue.text.isEmpty()) Text("Escribí el ticket…", color = Muted, fontSize = editorFontSize)
+                                        inner()
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 } else {
                     Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -386,7 +426,7 @@ private fun TicketApp(context: Context) {
                         }
                         CardBlock(Modifier.weight(1f).fillMaxHeight()) {
                             Text("Vista previa", fontWeight = FontWeight.SemiBold, color = Ink, fontSize = 12.sp)
-                            TicketTextPreview(designText, paperWidth, Modifier.weight(1f).fillMaxWidth(), true)
+                            TicketTextPreview(designText, paperWidth, Modifier.weight(1f).fillMaxWidth(), true, alignment = traditionalAlignment)
                         }
                     }
                 }
