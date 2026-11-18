@@ -87,6 +87,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 import com.mohamedrejeb.richeditor.ui.material3.RichTextEditor
+import com.mohamedrejeb.richeditor.ui.material3.RichText
 import com.mohamedrejeb.richeditor.model.rememberRichTextState
 
 private val Rose = Color(0xFFE96B8E)
@@ -539,6 +540,14 @@ private fun TicketApp(context: Context) {
                                                 modifier = Modifier.fillMaxWidth().heightIn(min = 190.dp),
                                                 placeholder = { Text("Escribí el ticket…", color = Muted) }
                                             )
+                                        }
+                                        Text("Vista previa con formato", fontWeight = FontWeight.SemiBold, color = Ink)
+                                        Card(
+                                            modifier = Modifier.fillMaxWidth().heightIn(min = 90.dp, max = 220.dp),
+                                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+                                        ) {
+                                            RichText(state = richEditorState, modifier = Modifier.fillMaxWidth().padding(8.dp))
                                         }
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             OutlinedButton(onClick = {
