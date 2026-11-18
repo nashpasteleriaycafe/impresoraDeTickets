@@ -139,9 +139,13 @@ private fun TicketApp(context: Context) {
                     val o = arr.getJSONObject(i)
                     add(TicketTemplate(
                         id = o.optString("id", UUID.randomUUID().toString()),
-                        name = o.optString("name", "Plantilla"),
+                        name = o.optString("name", "Plantilla").let { savedName ->
+                            if (savedName == "Ticket de ejemplo") "Plantilla en blanco" else savedName
+                        },
                         content = o.optString("content", "").let { saved ->
-                            saved
+                            val wasDefaultExample = o.optString("name") == "Ticket de ejemplo" &&
+                                (saved.contains("Nombre del producto") || saved.contains("NASH Pastelería"))
+                            if (wasDefaultExample) "" else saved
                         },
                         paperWidth = o.optInt("paperWidth", 58),
                         feedLines = o.optInt("feedLines", 3),
