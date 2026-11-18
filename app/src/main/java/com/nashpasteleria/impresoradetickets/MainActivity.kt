@@ -396,7 +396,7 @@ private fun TicketApp(context: Context) {
                         IconButton(onClick = { applyFormatting("underline") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatUnderlined, "Subrayado", tint = Ink, modifier = Modifier.size(20.dp)) }
                         VerticalDivider(Modifier.height(26.dp), color = Line)
                         IconButton(onClick = {
-                            val updated = template.copy(content = serializeRichText(designValue.annotatedString), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, paperWidth = paperWidth)
+                            val updated = template.copy(content = serializeRichText(designValue.annotatedString, ticketPreviewScale), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, paperWidth = paperWidth)
                             updateTemplate(templates, updated, ::persist)
                             notice = UsbEscPosPrinter.print(context, updated)
                         }, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Print, "Imprimir", tint = RoseDark, modifier = Modifier.size(20.dp)) }
@@ -553,7 +553,7 @@ private fun TicketApp(context: Context) {
                                     formatButton(traditionalUnderline, "Subrayado", { traditionalUnderline = !traditionalUnderline }, Icons.Default.FormatUnderlined)
                                     VerticalDivider(Modifier.height(28.dp), color = Line)
                                     IconButton(onClick = {
-                                        val updated = template.copy(content = serializeRichText(designValue.annotatedString), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = traditionalBold, underline = traditionalUnderline, italic = traditionalItalic, paperWidth = paperWidth)
+                                        val updated = template.copy(content = serializeRichText(designValue.annotatedString, ticketPreviewScale), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = traditionalBold, underline = traditionalUnderline, italic = traditionalItalic, paperWidth = paperWidth)
                                         updateTemplate(templates, updated, ::persist)
                                         notice = UsbEscPosPrinter.print(context, updated)
                                     }, modifier = Modifier.size(38.dp)) { Icon(Icons.Default.Print, contentDescription = "Imprimir", tint = RoseDark) }
@@ -837,7 +837,7 @@ private fun TicketApp(context: Context) {
                         val source = selected
                         val created = TicketTemplate(
                             name = name,
-                            content = if (activeTab == AppTab.DESIGN) serializeRichText(designValue.annotatedString) else source?.content ?: "",
+                            content = if (activeTab == AppTab.DESIGN) serializeRichText(designValue.annotatedString, ticketPreviewScale) else source?.content ?: "",
                             designMode = if (activeTab == AppTab.DESIGN) designMode else source?.designMode ?: "Ajuste automático", fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = traditionalBold, underline = traditionalUnderline, italic = traditionalItalic,
                             paperWidth = paperWidth,
                             feedLines = source?.feedLines ?: 3,
@@ -948,7 +948,7 @@ private fun ticketContentToAnnotatedString(content: String, sizeScale: Float = 1
     return builder.toAnnotatedString()
 }
 
-private fun serializeRichText(value: AnnotatedString): String {
+private fun serializeRichText(value: AnnotatedString, sizeScale: Float = 1f): String {
     val out = StringBuilder()
     val text = value.text
     var lineStart = 0
@@ -967,7 +967,7 @@ private fun serializeRichText(value: AnnotatedString): String {
             val bold = styles.lastOrNull { it.fontWeight != null }?.fontWeight == FontWeight.Bold
             val italic = styles.lastOrNull { it.fontStyle != null }?.fontStyle == androidx.compose.ui.text.font.FontStyle.Italic
             val underline = styles.lastOrNull { it.textDecoration != null }?.textDecoration == androidx.compose.ui.text.style.TextDecoration.Underline
-            val size = styles.lastOrNull { it.fontSize.isSp }?.fontSize?.value?.toInt()
+            val size = styles.lastOrNull { it.fontSize.isSp }?.fontSize?.value?.div(sizeScale.coerceAtLeast(0.01f))?.toInt()
             val family = styles.lastOrNull { it.fontFamily != null }?.fontFamily
             if (bold) out.append("<b>")
             if (italic) out.append("<i>")
