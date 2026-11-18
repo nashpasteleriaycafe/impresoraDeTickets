@@ -248,18 +248,19 @@ private fun TicketApp(context: Context) {
                             val template = selected ?: templates.first()
                             OutlinedTextField(
                                 value = designText,
-                                onValueChange = { value ->
-                                    designText = value
-                                    updateTemplate(templates, template.copy(content = value), ::persist)
-                                },
-                                modifier = Modifier.fillMaxWidth().heightIn(min = 280.dp),
+                                onValueChange = { value -> designText = value },
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp),
                                 placeholder = { Text("Escribí aquí el texto del ticket…") },
                                 label = { Text("Texto del ticket") },
-                                minLines = 12,
-                                maxLines = 24
+                                minLines = 8,
+                                maxLines = 18
                             )
+                            Spacer(Modifier.height(10.dp))
+                            Text("Vista previa del ticket", fontWeight = FontWeight.SemiBold, color = Ink)
+                            TicketTextPreview(text = designText, paperWidth = paperWidth, modifier = Modifier.fillMaxWidth())
+
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(onClick = { notice = UsbEscPosPrinter.print(context, template.copy(content = designText, paperWidth = paperWidth)) }, modifier = Modifier.weight(1f)) {
+                                OutlinedButton(onClick = { updateTemplate(templates, template.copy(content = designText), ::persist); notice = UsbEscPosPrinter.print(context, template.copy(content = designText, paperWidth = paperWidth)) }, modifier = Modifier.weight(1f)) {
                                     Icon(Icons.Default.Print, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Imprimir")
                                 }
                                 Button(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.weight(1f)) {
@@ -537,6 +538,42 @@ private fun TicketApp(context: Context) {
 }
 
 
+@Composable
+private fun TicketTextPreview(text: String, paperWidth: Int, modifier: Modifier = Modifier) {
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val lines = text.replace("\\r\\n", "\\n").replace('\\r', '\\n').split("\\n")
+    val baseTextPx = if (paperWidth <= 58) 28f else 34f
+    val previewWidth = if (paperWidth <= 58) 384f else 576f
+    val paint = remember { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG) }
+    Column(
+        modifier = modifier
+            .border(1.dp, Line, RoundedCornerShape(8.dp))
+            .background(Color.White)
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .heightIn(max = 320.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        lines.forEach { line ->
+            if (line.isEmpty()) {
+                Spacer(Modifier.height(12.dp))
+            } else {
+                paint.textSize = baseTextPx
+                val measured = paint.measureText(line).coerceAtLeast(1f)
+                val scaledPx = (baseTextPx * (previewWidth - 20f) / measured).coerceAtLeast(8f)
+                Text(
+                    text = line,
+                    color = Color.Black,
+                    fontSize = (scaledPx / density).sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+        if (lines.isEmpty()) Text("La vista previa aparecerá aquí", color = Muted, fontSize = 12.sp)
+    }
+}
+
 private fun ticketContentToPlainText(content: String): String {
     if (!content.contains("<") || !content.contains(">")) return content
     val withBreaks = content
@@ -592,6 +629,7 @@ private fun loadMonochromeImage(context: Context, uri: Uri, rotation: Int, brigh
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
         ?: error("No se pudo abrir la imagen.")
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) error("El archivo no contiene una imagen compatible.")
     var sample = 1
     while (bounds.outWidth / sample > 1600 || bounds.outHeight / sample > 1600) sample *= 2
     val options = BitmapFactory.Options().apply { inSampleSize = sample.coerceAtLeast(1); inPreferredConfig = Bitmap.Config.RGB_565 }
