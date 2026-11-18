@@ -77,6 +77,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.ParagraphStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.font.FontFamily
@@ -99,7 +100,7 @@ private val Line = Color(0xFFF0DDE2)
 data class TicketTemplate(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
-    val content: String = "Nombre del producto\n.\n" + SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date()),
+    val content: String = "",
     val paperWidth: Int = 58,
     val feedLines: Int = 3,
     val cutAfterPrint: Boolean = true,
@@ -140,9 +141,7 @@ private fun TicketApp(context: Context) {
                         id = o.optString("id", UUID.randomUUID().toString()),
                         name = o.optString("name", "Plantilla"),
                         content = o.optString("content", "").let { saved ->
-                            if (saved.isBlank() || (o.optString("name") == "Ticket de ejemplo" && saved.contains("NASH Pastelería"))) {
-                                "Nombre del producto\n.\n" + SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
-                            } else saved
+                            saved
                         },
                         paperWidth = o.optInt("paperWidth", 58),
                         feedLines = o.optInt("feedLines", 3),
@@ -152,7 +151,7 @@ private fun TicketApp(context: Context) {
                     ))
                 }
             }
-            if (isEmpty()) add(TicketTemplate(name = "Ticket de ejemplo"))
+            if (isEmpty()) add(TicketTemplate(name = "Plantilla en blanco", content = ""))
         }
     }
     var selectedId by remember { mutableStateOf(templates.first().id) }
@@ -193,6 +192,53 @@ private fun TicketApp(context: Context) {
     var traditionalUnderline by remember(selected?.id) { mutableStateOf(selected?.underline ?: false) }
     var traditionalItalic by remember(selected?.id) { mutableStateOf(selected?.italic ?: false) }
 
+    fun selectedLineRanges(): List<IntRange> {
+        val text = designValue.text
+        if (text.isEmpty()) return emptyList()
+        val selection = designValue.selection
+        val first = selection.min.coerceIn(0, text.length)
+        val last = (if (selection.collapsed) first else (selection.max - 1).coerceAtLeast(first)).coerceIn(0, text.length)
+        val ranges = mutableListOf<IntRange>()
+        var lineStart = text.lastIndexOf('\n', (first - 1).coerceAtLeast(0)).let { if (first == 0) 0 else it + 1 }
+        while (lineStart <= last) {
+            val nextBreak = text.indexOf('\n', lineStart)
+            val lineEnd = if (nextBreak < 0) text.length else nextBreak
+            ranges.add(lineStart until lineEnd.coerceAtLeast(lineStart + 1).coerceAtMost(text.length))
+            if (nextBreak < 0 || nextBreak >= last) break
+            lineStart = nextBreak + 1
+        }
+        return ranges.filter { it.first < it.last || (text.isEmpty() && it.first == 0) }
+    }
+
+    fun applyLineFormatting(kind: String, value: String) {
+        val annotated = designValue.annotatedString
+        val ranges = selectedLineRanges()
+        if (ranges.isEmpty()) return
+        val builder = AnnotatedString.Builder(annotated)
+        when (kind) {
+            "alignment" -> {
+                val alignment = when (value) {
+                    "Centro" -> TextAlign.Center
+                    "Derecha" -> TextAlign.End
+                    "Justificado" -> TextAlign.Justify
+                    else -> TextAlign.Start
+                }
+                ranges.forEach { range ->
+                    builder.addStyle(ParagraphStyle(textAlign = alignment), range.first, range.last)
+                }
+                traditionalAlignment = value
+            }
+            "size" -> ranges.forEach { range ->
+                builder.addStyle(SpanStyle(fontSize = (traditionalFontSize * ticketPreviewScale).sp), range.first, range.last)
+            }
+            "font" -> {
+                val family = when (value) { "Serif" -> FontFamily.Serif; "Monospace" -> FontFamily.Monospace; else -> FontFamily.SansSerif }
+                ranges.forEach { range -> builder.addStyle(SpanStyle(fontFamily = family), range.first, range.last) }
+            }
+        }
+        designValue = TextFieldValue(builder.toAnnotatedString(), designValue.selection)
+    }
+
     fun applyFormatting(kind: String) {
         val annotated = designValue.annotatedString
         val text = annotated.text
@@ -214,8 +260,6 @@ private fun TicketApp(context: Context) {
             "bold" -> selectedSpan.copy(fontWeight = if (selectedSpan.fontWeight == FontWeight.Bold) FontWeight.Normal else FontWeight.Bold)
             "italic" -> selectedSpan.copy(fontStyle = if (selectedSpan.fontStyle == androidx.compose.ui.text.font.FontStyle.Italic) androidx.compose.ui.text.font.FontStyle.Normal else androidx.compose.ui.text.font.FontStyle.Italic)
             "underline" -> selectedSpan.copy(textDecoration = if (selectedSpan.textDecoration == androidx.compose.ui.text.style.TextDecoration.Underline) androidx.compose.ui.text.style.TextDecoration.None else androidx.compose.ui.text.style.TextDecoration.Underline)
-            "size" -> selectedSpan.copy(fontSize = (traditionalFontSize * ticketPreviewScale).sp)
-            "font" -> selectedSpan.copy(fontFamily = when (traditionalFont) { "Serif" -> FontFamily.Serif; "Monospace" -> FontFamily.Monospace; else -> FontFamily.SansSerif })
             else -> selectedSpan
         }
         builder.addStyle(style, start, end)
@@ -320,7 +364,7 @@ private fun TicketApp(context: Context) {
                             }
                             DropdownMenu(expanded = sizeMenu, onDismissRequest = { sizeMenu = false }) {
                                 listOf(10, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 40).forEach { size ->
-                                    DropdownMenuItem(text = { Text("${size} sp") }, onClick = { traditionalFontSize = size; applyFormatting("size"); sizeMenu = false })
+                                    DropdownMenuItem(text = { Text("${size} sp") }, onClick = { traditionalFontSize = size; applyLineFormatting("size", size.toString()); sizeMenu = false })
                                 }
                             }
                         }
@@ -332,15 +376,15 @@ private fun TicketApp(context: Context) {
                             }
                             DropdownMenu(expanded = fontMenu, onDismissRequest = { fontMenu = false }) {
                                 listOf("Sans Serif", "Serif", "Monospace").forEach { font ->
-                                    DropdownMenuItem(text = { Text(font) }, onClick = { traditionalFont = font; applyFormatting("font"); fontMenu = false })
+                                    DropdownMenuItem(text = { Text(font) }, onClick = { traditionalFont = font; applyLineFormatting("font", font); fontMenu = false })
                                 }
                             }
                         }
                         VerticalDivider(Modifier.height(26.dp), color = Line)
-                        IconButton(onClick = { traditionalAlignment = "Izquierda" }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatAlignLeft, "Alinear a la izquierda", tint = if (traditionalAlignment == "Izquierda") RoseDark else Ink, modifier = Modifier.size(20.dp)) }
-                        IconButton(onClick = { traditionalAlignment = "Centro" }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatAlignCenter, "Centrar", tint = if (traditionalAlignment == "Centro") RoseDark else Ink, modifier = Modifier.size(20.dp)) }
-                        IconButton(onClick = { traditionalAlignment = "Derecha" }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatAlignRight, "Alinear a la derecha", tint = if (traditionalAlignment == "Derecha") RoseDark else Ink, modifier = Modifier.size(20.dp)) }
-                        IconButton(onClick = { traditionalAlignment = "Justificado" }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatAlignJustify, "Justificar", tint = if (traditionalAlignment == "Justificado") RoseDark else Ink, modifier = Modifier.size(20.dp)) }
+                        IconButton(onClick = { applyLineFormatting("alignment", "Izquierda") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatAlignLeft, "Alinear a la izquierda", tint = if (traditionalAlignment == "Izquierda") RoseDark else Ink, modifier = Modifier.size(20.dp)) }
+                        IconButton(onClick = { applyLineFormatting("alignment", "Centro") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatAlignCenter, "Centrar", tint = if (traditionalAlignment == "Centro") RoseDark else Ink, modifier = Modifier.size(20.dp)) }
+                        IconButton(onClick = { applyLineFormatting("alignment", "Derecha") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatAlignRight, "Alinear a la derecha", tint = if (traditionalAlignment == "Derecha") RoseDark else Ink, modifier = Modifier.size(20.dp)) }
+                        IconButton(onClick = { applyLineFormatting("alignment", "Justificado") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatAlignJustify, "Justificar", tint = if (traditionalAlignment == "Justificado") RoseDark else Ink, modifier = Modifier.size(20.dp)) }
                         VerticalDivider(Modifier.height(26.dp), color = Line)
                         IconButton(onClick = { applyFormatting("bold") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatBold, "Negrita", tint = Ink, modifier = Modifier.size(20.dp)) }
                         IconButton(onClick = { applyFormatting("italic") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatItalic, "Cursiva", tint = Ink, modifier = Modifier.size(20.dp)) }
@@ -357,7 +401,7 @@ private fun TicketApp(context: Context) {
                 if (traditional) {
                     val printerDots = if (paperWidth <= 58) 384f else 576f
                     val paperDisplayWidth = minOf(if (paperWidth <= 58) 240 else 320, configuration.screenWidthDp - 32).coerceAtLeast(180).dp
-                    val editorFontSize = (traditionalFontSize * (paperDisplayWidth.value / printerDots)).coerceAtLeast(8f).sp
+                    val editorFontSize = (24f * (paperDisplayWidth.value / printerDots)).coerceAtLeast(8f).sp
                     val editorFontFamily = when (traditionalFont) { "Serif" -> FontFamily.Serif; "Monospace" -> FontFamily.Monospace; else -> FontFamily.SansSerif }
                     val editorAlignment = when (traditionalAlignment) {
                         "Centro" -> TextAlign.Center
@@ -381,7 +425,6 @@ private fun TicketApp(context: Context) {
                                     } else next
                                 },
                                 modifier = Modifier.fillMaxSize()
-                                    .verticalScroll(rememberScrollState())
                                     .onPreviewKeyEvent { event ->
                                         if (event.type == KeyEventType.KeyDown && event.isCtrlPressed) {
                                             when (event.key) {
@@ -395,8 +438,8 @@ private fun TicketApp(context: Context) {
                                 textStyle = androidx.compose.ui.text.TextStyle(
                                     color = Ink,
                                     fontSize = editorFontSize,
-                                    fontFamily = editorFontFamily,
-                                    textAlign = editorAlignment,
+                                    fontFamily = FontFamily.SansSerif,
+                                    textAlign = TextAlign.Start,
                                     lineHeight = (editorFontSize.value * 1.22f).sp
                                 ),
                                 cursorBrush = androidx.compose.ui.graphics.SolidColor(RoseDark),
@@ -789,7 +832,7 @@ private fun TicketApp(context: Context) {
                         val source = selected
                         val created = TicketTemplate(
                             name = name,
-                            content = if (activeTab == AppTab.DESIGN) serializeRichText(designValue.annotatedString) else source?.content ?: ("Nombre del producto\n.\n" + SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())),
+                            content = if (activeTab == AppTab.DESIGN) serializeRichText(designValue.annotatedString) else source?.content ?: "",
                             designMode = if (activeTab == AppTab.DESIGN) designMode else source?.designMode ?: "Ajuste automático", fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = traditionalBold, underline = traditionalUnderline, italic = traditionalItalic,
                             paperWidth = paperWidth,
                             feedLines = source?.feedLines ?: 3,
@@ -814,7 +857,7 @@ private fun TicketApp(context: Context) {
             confirmButton = {
                 Button(onClick = {
                     templates.removeAll { it.id == template.id }
-                    if (templates.isEmpty()) templates.add(TicketTemplate(name = "Ticket de ejemplo"))
+                    if (templates.isEmpty()) templates.add(TicketTemplate(name = "Plantilla en blanco", content = ""))
                     if (selectedId == template.id) selectedId = templates.first().id
                     persist(); deleteCandidate = null
                 }) { Text("Eliminar") }
@@ -871,60 +914,80 @@ private fun TicketTextPreview(text: String, paperWidth: Int, modifier: Modifier 
 private fun ticketContentToAnnotatedString(content: String, sizeScale: Float = 1f): AnnotatedString {
     if (!content.contains("<") || !content.contains(">")) return AnnotatedString(content)
     val spanned = android.text.Html.fromHtml(content, android.text.Html.FROM_HTML_MODE_LEGACY)
-    val builder = AnnotatedString.Builder(spanned.toString())
+    val plain = spanned.toString().trimEnd('\n')
+    val builder = AnnotatedString.Builder(plain)
     val spans = spanned as? android.text.Spanned ?: return builder.toAnnotatedString()
-    spans.getSpans(0, spans.length, Any::class.java).forEach { span ->
-        val start = spans.getSpanStart(span).coerceIn(0, spans.length)
-        val end = spans.getSpanEnd(span).coerceIn(start, spans.length)
+    spans.getSpans(0, plain.length, Any::class.java).forEach { span ->
+        val start = spans.getSpanStart(span).coerceIn(0, plain.length)
+        val end = spans.getSpanEnd(span).coerceIn(start, plain.length)
         if (start >= end) return@forEach
-        val style = when (span) {
-            is android.text.style.StyleSpan -> SpanStyle(
+        when (span) {
+            is android.text.style.AlignmentSpan -> {
+                val alignment = when (span.alignment) {
+                    android.text.Layout.Alignment.ALIGN_CENTER -> TextAlign.Center
+                    android.text.Layout.Alignment.ALIGN_OPPOSITE -> TextAlign.End
+                    else -> TextAlign.Start
+                }
+                builder.addStyle(ParagraphStyle(textAlign = alignment), start, end)
+            }
+            is android.text.style.StyleSpan -> builder.addStyle(SpanStyle(
                 fontWeight = if (span.style and android.graphics.Typeface.BOLD != 0) FontWeight.Bold else FontWeight.Normal,
                 fontStyle = if (span.style and android.graphics.Typeface.ITALIC != 0) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
-            )
-            is android.text.style.UnderlineSpan -> SpanStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline)
-            is android.text.style.AbsoluteSizeSpan -> SpanStyle(fontSize = (span.size * sizeScale).sp)
-            is android.text.style.RelativeSizeSpan -> SpanStyle(fontSize = (18f * span.sizeChange * sizeScale).sp)
-            is android.text.style.TypefaceSpan -> SpanStyle(fontFamily = when (span.family) { "serif" -> FontFamily.Serif; "monospace" -> FontFamily.Monospace; else -> FontFamily.SansSerif })
-            else -> null
+            ), start, end)
+            is android.text.style.UnderlineSpan -> builder.addStyle(SpanStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline), start, end)
+            is android.text.style.AbsoluteSizeSpan -> builder.addStyle(SpanStyle(fontSize = (span.size * sizeScale).sp), start, end)
+            is android.text.style.RelativeSizeSpan -> builder.addStyle(SpanStyle(fontSize = (18f * span.sizeChange * sizeScale).sp), start, end)
+            is android.text.style.TypefaceSpan -> builder.addStyle(SpanStyle(fontFamily = when (span.family) { "serif" -> FontFamily.Serif; "monospace" -> FontFamily.Monospace; else -> FontFamily.SansSerif }), start, end)
         }
-        if (style != null) builder.addStyle(style, start, end)
     }
     return builder.toAnnotatedString()
 }
 
 private fun serializeRichText(value: AnnotatedString): String {
-    if (value.spanStyles.isEmpty()) return value.text
     val out = StringBuilder()
-    for (i in value.text.indices) {
-        val styles = value.spanStyles.filter { i >= it.start && i < it.end }.map { it.item }
-        // Later spans override earlier ones, including explicit "off" styles.
-        val bold = styles.lastOrNull { it.fontWeight != null }?.fontWeight == FontWeight.Bold
-        val italic = styles.lastOrNull { it.fontStyle != null }?.fontStyle == androidx.compose.ui.text.font.FontStyle.Italic
-        val underline = styles.lastOrNull { it.textDecoration != null }?.textDecoration == androidx.compose.ui.text.style.TextDecoration.Underline
-        val size = styles.lastOrNull { it.fontSize.isSp }?.fontSize?.value?.toInt()
-        val family = styles.lastOrNull { it.fontFamily != null }?.fontFamily
-        if (bold) out.append("<b>")
-        if (italic) out.append("<i>")
-        if (underline) out.append("<u>")
-        if (size != null || family != null) {
-            val css = buildList {
-                if (size != null) add("font-size:${size}px")
-                if (family != null) add("font-family:${when (family) { FontFamily.Serif -> "serif"; FontFamily.Monospace -> "monospace"; else -> "sans-serif" }}")
-            }.joinToString(";")
-            out.append("<span style=\"").append(css).append("\">")
+    val text = value.text
+    var lineStart = 0
+    while (lineStart <= text.length) {
+        val breakAt = text.indexOf('\n', lineStart).let { if (it < 0) text.length else it }
+        val alignment = value.paragraphStyles.lastOrNull { it.start <= lineStart && it.end >= breakAt }?.item?.textAlign
+        val alignName = when (alignment) {
+            TextAlign.Center -> "center"
+            TextAlign.End, TextAlign.Right -> "right"
+            TextAlign.Justify -> "justify"
+            else -> "left"
         }
-        when (val ch = value.text[i]) {
-            '&' -> out.append("&amp;")
-            '<' -> out.append("&lt;")
-            '>' -> out.append("&gt;")
-            '\n' -> out.append("<br>")
-            else -> out.append(ch)
+        out.append("<p align=\"").append(alignName).append("\">")
+        for (i in lineStart until breakAt) {
+            val styles = value.spanStyles.filter { i >= it.start && i < it.end }.map { it.item }
+            val bold = styles.lastOrNull { it.fontWeight != null }?.fontWeight == FontWeight.Bold
+            val italic = styles.lastOrNull { it.fontStyle != null }?.fontStyle == androidx.compose.ui.text.font.FontStyle.Italic
+            val underline = styles.lastOrNull { it.textDecoration != null }?.textDecoration == androidx.compose.ui.text.style.TextDecoration.Underline
+            val size = styles.lastOrNull { it.fontSize.isSp }?.fontSize?.value?.toInt()
+            val family = styles.lastOrNull { it.fontFamily != null }?.fontFamily
+            if (bold) out.append("<b>")
+            if (italic) out.append("<i>")
+            if (underline) out.append("<u>")
+            if (size != null || family != null) {
+                val css = buildList {
+                    if (size != null) add("font-size:${size}px")
+                    if (family != null) add("font-family:${when (family) { FontFamily.Serif -> "serif"; FontFamily.Monospace -> "monospace"; else -> "sans-serif" }}")
+                }.joinToString(";")
+                out.append("<span style=\"").append(css).append("\">")
+            }
+            when (val ch = text[i]) {
+                '&' -> out.append("&amp;")
+                '<' -> out.append("&lt;")
+                '>' -> out.append("&gt;")
+                else -> out.append(ch)
+            }
+            if (size != null || family != null) out.append("</span>")
+            if (underline) out.append("</u>")
+            if (italic) out.append("</i>")
+            if (bold) out.append("</b>")
         }
-        if (size != null || family != null) out.append("</span>")
-        if (underline) out.append("</u>")
-        if (italic) out.append("</i>")
-        if (bold) out.append("</b>")
+        out.append("</p>")
+        if (breakAt == text.length) break
+        lineStart = breakAt + 1
     }
     return out.toString()
 }
