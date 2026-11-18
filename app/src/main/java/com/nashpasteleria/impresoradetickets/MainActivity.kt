@@ -22,6 +22,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import android.content.res.Configuration
@@ -68,6 +69,10 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -171,7 +176,36 @@ private fun TicketApp(context: Context) {
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) { selectedImage = uri; imageRotation = 0 } }
     val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) selectedPdf = uri }
     val selected = templates.firstOrNull { it.id == selectedId } ?: templates.firstOrNull()
-    var designText by remember(selected?.id) { mutableStateOf(selected?.content?.let(::ticketContentToPlainText) ?: "") }
+    var designValue by remember(selected?.id) { mutableStateOf(TextFieldValue(selected?.content?.let(::ticketContentToAnnotatedString) ?: AnnotatedString(""))) }
+    val designText = designValue.text
+    fun applyFormatting(kind: String) {
+        val annotated = designValue.annotatedString
+        val text = annotated.text
+        if (text.isEmpty()) return
+        val selection = designValue.selection
+        var start = selection.min
+        var end = selection.max
+        if (start == end) {
+            start = start.coerceIn(0, text.length)
+            end = start
+            while (start > 0 && !text[start - 1].isWhitespace()) start--
+            while (end < text.length && !text[end].isWhitespace()) end++
+            if (start == end) return
+        }
+        val builder = AnnotatedString.Builder(annotated)
+        val existing = annotated.spanStyles.filter { it.start < end && it.end > start }
+        val selectedSpan = existing.lastOrNull { it.start <= start && it.end >= end }?.item ?: SpanStyle()
+        val style = when (kind) {
+            "bold" -> selectedSpan.copy(fontWeight = if (selectedSpan.fontWeight == FontWeight.Bold) FontWeight.Normal else FontWeight.Bold)
+            "italic" -> selectedSpan.copy(fontStyle = if (selectedSpan.fontStyle == androidx.compose.ui.text.font.FontStyle.Italic) androidx.compose.ui.text.font.FontStyle.Normal else androidx.compose.ui.text.font.FontStyle.Italic)
+            "underline" -> selectedSpan.copy(textDecoration = if (selectedSpan.textDecoration == androidx.compose.ui.text.style.TextDecoration.Underline) androidx.compose.ui.text.style.TextDecoration.None else androidx.compose.ui.text.style.TextDecoration.Underline)
+            "size" -> selectedSpan.copy(fontSize = traditionalFontSize.sp)
+            "font" -> selectedSpan.copy(fontFamily = when (traditionalFont) { "Serif" -> FontFamily.Serif; "Monospace" -> FontFamily.Monospace; else -> FontFamily.SansSerif })
+            else -> selectedSpan
+        }
+        builder.addStyle(style, start, end)
+        designValue = TextFieldValue(builder.toAnnotatedString(), TextRange(start, end))
+    }
     var designMode by remember(selected?.id) { mutableStateOf(selected?.designMode ?: "Ajuste automático") }
     var traditionalFontSize by remember(selected?.id) { mutableIntStateOf(selected?.fontSize ?: 24) }
     var traditionalFont by remember(selected?.id) { mutableStateOf(selected?.fontFamily ?: "Sans Serif") }
@@ -258,8 +292,107 @@ private fun TicketApp(context: Context) {
             }
         }
     ) { insets ->
+        if (activeTab == AppTab.DESIGN) {
+            val template = selected ?: templates.first()
+            val traditional = designMode == "Tradicional"
+            Column(Modifier.fillMaxSize().padding(insets).padding(horizontal = 10.dp).padding(top = 4.dp, bottom = 2.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    Text("Diseño", fontWeight = FontWeight.SemiBold, color = Ink, fontSize = 13.sp)
+                    Spacer(Modifier.weight(1f))
+                    FilterChip(selected = !traditional, onClick = { designMode = "Ajuste automático" }, label = { Text("Automático", fontSize = 10.sp) })
+                    FilterChip(selected = traditional, onClick = { designMode = "Tradicional" }, label = { Text("Tradicional", fontSize = 10.sp) })
+                }
+                if (traditional) {
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                        var sizeMenu by remember { mutableStateOf(false) }
+                        Box {
+                            TextButton(onClick = { sizeMenu = true }, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)) {
+                                Text("${traditionalFontSize}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Tamaño de fuente", modifier = Modifier.size(18.dp))
+                            }
+                            DropdownMenu(expanded = sizeMenu, onDismissRequest = { sizeMenu = false }) {
+                                listOf(10, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 40).forEach { size ->
+                                    DropdownMenuItem(text = { Text("${size} sp") }, onClick = { traditionalFontSize = size; applyFormatting("size"); sizeMenu = false })
+                                }
+                            }
+                        }
+                        var fontMenu by remember { mutableStateOf(false) }
+                        Box {
+                            TextButton(onClick = { fontMenu = true }, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)) {
+                                Text(when (traditionalFont) { "Serif" -> "Serif"; "Monospace" -> "Mono"; else -> "Sans" }, fontSize = 12.sp)
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Estilo de fuente", modifier = Modifier.size(18.dp))
+                            }
+                            DropdownMenu(expanded = fontMenu, onDismissRequest = { fontMenu = false }) {
+                                listOf("Sans Serif", "Serif", "Monospace").forEach { font ->
+                                    DropdownMenuItem(text = { Text(font) }, onClick = { traditionalFont = font; applyFormatting("font"); fontMenu = false })
+                                }
+                            }
+                        }
+                        VerticalDivider(Modifier.height(26.dp), color = Line)
+                        IconButton(onClick = { traditionalAlignment = "Izquierda" }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatAlignLeft, "Alinear a la izquierda", tint = if (traditionalAlignment == "Izquierda") RoseDark else Ink, modifier = Modifier.size(20.dp)) }
+                        IconButton(onClick = { traditionalAlignment = "Centro" }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatAlignCenter, "Centrar", tint = if (traditionalAlignment == "Centro") RoseDark else Ink, modifier = Modifier.size(20.dp)) }
+                        IconButton(onClick = { traditionalAlignment = "Derecha" }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatAlignRight, "Alinear a la derecha", tint = if (traditionalAlignment == "Derecha") RoseDark else Ink, modifier = Modifier.size(20.dp)) }
+                        IconButton(onClick = { traditionalAlignment = "Justificado" }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatAlignJustify, "Justificar", tint = if (traditionalAlignment == "Justificado") RoseDark else Ink, modifier = Modifier.size(20.dp)) }
+                        VerticalDivider(Modifier.height(26.dp), color = Line)
+                        IconButton(onClick = { applyFormatting("bold") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatBold, "Negrita", tint = Ink, modifier = Modifier.size(20.dp)) }
+                        IconButton(onClick = { applyFormatting("italic") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatItalic, "Cursiva", tint = Ink, modifier = Modifier.size(20.dp)) }
+                        IconButton(onClick = { applyFormatting("underline") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatUnderlined, "Subrayado", tint = Ink, modifier = Modifier.size(20.dp)) }
+                        VerticalDivider(Modifier.height(26.dp), color = Line)
+                        IconButton(onClick = {
+                            val updated = template.copy(content = serializeRichText(designValue.annotatedString), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, paperWidth = paperWidth)
+                            updateTemplate(templates, updated, ::persist)
+                            notice = UsbEscPosPrinter.print(context, updated)
+                        }, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Print, "Imprimir", tint = RoseDark, modifier = Modifier.size(20.dp)) }
+                        IconButton(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Save, "Guardar plantilla", tint = RoseDark, modifier = Modifier.size(20.dp)) }
+                    }
+                }
+                if (traditional) {
+                    CardBlock(Modifier.fillMaxWidth().weight(1f)) {
+                        BasicTextField(
+                            value = designValue,
+                            onValueChange = { designValue = it },
+                            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                            textStyle = androidx.compose.ui.text.TextStyle(color = Ink, fontSize = 18.sp, fontFamily = FontFamily.SansSerif),
+                            cursorBrush = androidx.compose.ui.graphics.SolidColor(RoseDark),
+                            decorationBox = { inner ->
+                                Box(Modifier.fillMaxSize().padding(8.dp)) {
+                                    if (designValue.text.isEmpty()) Text("Escribí el ticket. Seleccioná una palabra o frase para aplicar formato…", color = Muted, fontSize = 16.sp)
+                                    inner()
+                                }
+                            }
+                        )
+                    }
+                } else {
+                    Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CardBlock(Modifier.weight(1f).fillMaxHeight()) {
+                            Text("Texto del ticket", fontWeight = FontWeight.SemiBold, color = Ink, fontSize = 12.sp)
+                            OutlinedTextField(
+                                value = designText,
+                                onValueChange = { designValue = TextFieldValue(it) },
+                                modifier = Modifier.weight(1f).fillMaxWidth(),
+                                placeholder = { Text("Escribí aquí el texto del ticket…") },
+                                minLines = 1,
+                                maxLines = Int.MAX_VALUE
+                            )
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                IconButton(onClick = {
+                                    val updated = template.copy(content = designText, designMode = designMode, paperWidth = paperWidth)
+                                    updateTemplate(templates, updated, ::persist)
+                                    notice = UsbEscPosPrinter.print(context, updated)
+                                }) { Icon(Icons.Default.Print, "Imprimir", tint = RoseDark) }
+                                IconButton(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }) { Icon(Icons.Default.Save, "Guardar plantilla", tint = RoseDark) }
+                            }
+                        }
+                        CardBlock(Modifier.weight(1f).fillMaxHeight()) {
+                            Text("Vista previa", fontWeight = FontWeight.SemiBold, color = Ink, fontSize = 12.sp)
+                            TicketTextPreview(designText, paperWidth, Modifier.weight(1f).fillMaxWidth(), true)
+                        }
+                    }
+                }
+            }
+        } else {
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(insets).padding(horizontal = if (activeTab == AppTab.DESIGN) 0.dp else 16.dp),
+            modifier = Modifier.fillMaxSize().padding(insets).padding(horizontal = 16.dp),
             contentPadding = PaddingValues(top = 12.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -325,7 +458,7 @@ private fun TicketApp(context: Context) {
                                     formatButton(traditionalUnderline, "Subrayado", { traditionalUnderline = !traditionalUnderline }, Icons.Default.FormatUnderlined)
                                     VerticalDivider(Modifier.height(28.dp), color = Line)
                                     IconButton(onClick = {
-                                        val updated = template.copy(content = designText, designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = traditionalBold, underline = traditionalUnderline, italic = traditionalItalic, paperWidth = paperWidth)
+                                        val updated = template.copy(content = serializeRichText(designValue.annotatedString), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = traditionalBold, underline = traditionalUnderline, italic = traditionalItalic, paperWidth = paperWidth)
                                         updateTemplate(templates, updated, ::persist)
                                         notice = UsbEscPosPrinter.print(context, updated)
                                     }, modifier = Modifier.size(38.dp)) { Icon(Icons.Default.Print, contentDescription = "Imprimir", tint = RoseDark) }
@@ -343,8 +476,8 @@ private fun TicketApp(context: Context) {
                                     CardBlock(Modifier.weight(1f).fillMaxHeight()) {
                                         Text("Texto del ticket", fontWeight = FontWeight.SemiBold, color = Ink, fontSize = 12.sp)
                                         OutlinedTextField(
-                                            value = designText,
-                                            onValueChange = { designText = it },
+                                            value = designValue,
+                                            onValueChange = { designValue = it },
                                             modifier = Modifier.weight(1f).fillMaxWidth(),
                                             placeholder = { Text("Escribí aquí el texto del ticket…") },
                                             minLines = 1,
@@ -368,7 +501,7 @@ private fun TicketApp(context: Context) {
                                 }
                             } else {
                                 CardBlock {
-                                    OutlinedTextField(value = designText, onValueChange = { designText = it }, modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp), placeholder = { Text("Escribí aquí el texto del ticket…") }, label = { Text("Texto del ticket") }, minLines = 5, maxLines = 12)
+                                    OutlinedTextField(value = designValue, onValueChange = { designValue = it }, modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp), placeholder = { Text("Escribí aquí el texto del ticket…") }, label = { Text("Texto del ticket") }, minLines = 5, maxLines = 12)
                                     Text("Vista previa", fontWeight = FontWeight.SemiBold, color = Ink)
                                     TicketTextPreview(designText, paperWidth, Modifier.fillMaxWidth(), !traditional, traditionalFontSize, traditionalFont, traditionalAlignment, traditionalBold, traditionalUnderline, traditionalItalic)
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -591,6 +724,7 @@ private fun TicketApp(context: Context) {
                 }
             }
         }
+        }
     }
 
     if (showSaveTemplateDialog) {
@@ -608,7 +742,7 @@ private fun TicketApp(context: Context) {
                         val source = selected
                         val created = TicketTemplate(
                             name = name,
-                            content = if (activeTab == AppTab.DESIGN) designText else source?.content ?: ("Nombre del producto\n.\n" + SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())),
+                            content = if (activeTab == AppTab.DESIGN) serializeRichText(designValue.annotatedString) else source?.content ?: ("Nombre del producto\n.\n" + SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())),
                             designMode = if (activeTab == AppTab.DESIGN) designMode else source?.designMode ?: "Ajuste automático", fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = traditionalBold, underline = traditionalUnderline, italic = traditionalItalic,
                             paperWidth = paperWidth,
                             feedLines = source?.feedLines ?: 3,
@@ -685,6 +819,66 @@ private fun TicketTextPreview(text: String, paperWidth: Int, modifier: Modifier 
         }
         if (lines.isEmpty()) Text("La vista previa aparecerá aquí", color = Muted, fontSize = 12.sp)
     }
+}
+
+private fun ticketContentToAnnotatedString(content: String): AnnotatedString {
+    if (!content.contains("<") || !content.contains(">")) return AnnotatedString(content)
+    val spanned = android.text.Html.fromHtml(content, android.text.Html.FROM_HTML_MODE_LEGACY)
+    val builder = AnnotatedString.Builder(spanned.toString())
+    val spans = spanned as? android.text.Spanned ?: return builder.toAnnotatedString()
+    spans.getSpans(0, spans.length, Any::class.java).forEach { span ->
+        val start = spans.getSpanStart(span).coerceIn(0, spans.length)
+        val end = spans.getSpanEnd(span).coerceIn(start, spans.length)
+        if (start >= end) return@forEach
+        val style = when (span) {
+            is android.text.style.StyleSpan -> SpanStyle(
+                fontWeight = if (span.style and android.graphics.Typeface.BOLD != 0) FontWeight.Bold else FontWeight.Normal,
+                fontStyle = if (span.style and android.graphics.Typeface.ITALIC != 0) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
+            )
+            is android.text.style.UnderlineSpan -> SpanStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline)
+            is android.text.style.AbsoluteSizeSpan -> SpanStyle(fontSize = span.size.sp)
+            is android.text.style.RelativeSizeSpan -> SpanStyle(fontSize = (18f * span.sizeChange).sp)
+            is android.text.style.TypefaceSpan -> SpanStyle(fontFamily = when (span.family) { "serif" -> FontFamily.Serif; "monospace" -> FontFamily.Monospace; else -> FontFamily.SansSerif })
+            else -> null
+        }
+        if (style != null) builder.addStyle(style, start, end)
+    }
+    return builder.toAnnotatedString()
+}
+
+private fun serializeRichText(value: AnnotatedString): String {
+    if (value.spanStyles.isEmpty()) return value.text
+    val out = StringBuilder()
+    for (i in value.text.indices) {
+        val styles = value.spanStyles.filter { i >= it.start && i < it.end }.map { it.item }
+        val bold = styles.any { it.fontWeight == FontWeight.Bold }
+        val italic = styles.any { it.fontStyle == androidx.compose.ui.text.font.FontStyle.Italic }
+        val underline = styles.any { it.textDecoration == androidx.compose.ui.text.style.TextDecoration.Underline }
+        val size = styles.lastOrNull { it.fontSize.isSp }?.fontSize?.value?.toInt()
+        val family = styles.lastOrNull { it.fontFamily != null }?.fontFamily
+        if (bold) out.append("<b>")
+        if (italic) out.append("<i>")
+        if (underline) out.append("<u>")
+        if (size != null || family != null) {
+            val css = buildList {
+                if (size != null) add("font-size:${size}px")
+                if (family != null) add("font-family:${when (family) { FontFamily.Serif -> "serif"; FontFamily.Monospace -> "monospace"; else -> "sans-serif" }}")
+            }.joinToString(";")
+            out.append("<span style=\"").append(css).append("\">")
+        }
+        when (val ch = value.text[i]) {
+            '&' -> out.append("&amp;")
+            '<' -> out.append("&lt;")
+            '>' -> out.append("&gt;")
+            '\n' -> out.append("<br>")
+            else -> out.append(ch)
+        }
+        if (size != null || family != null) out.append("</span>")
+        if (underline) out.append("</u>")
+        if (italic) out.append("</i>")
+        if (bold) out.append("</b>")
+    }
+    return out.toString()
 }
 
 private fun ticketContentToPlainText(content: String): String {
