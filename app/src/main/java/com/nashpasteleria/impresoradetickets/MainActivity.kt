@@ -402,8 +402,8 @@ private fun TicketApp(context: Context) {
                         CardBlock(Modifier.weight(1f).fillMaxHeight()) {
                             Text("Texto del ticket", fontWeight = FontWeight.SemiBold, color = Ink, fontSize = 12.sp)
                             OutlinedTextField(
-                                value = designText,
-                                onValueChange = { designValue = TextFieldValue(it) },
+                                value = designValue,
+                                onValueChange = { designValue = it },
                                 modifier = Modifier.weight(1f).fillMaxWidth(),
                                 placeholder = { Text("Escribí aquí el texto del ticket…") },
                                 minLines = 1,
@@ -411,7 +411,7 @@ private fun TicketApp(context: Context) {
                             )
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 IconButton(onClick = {
-                                    val updated = template.copy(content = designText, designMode = designMode, paperWidth = paperWidth)
+                                    val updated = template.copy(content = serializeRichText(designValue.annotatedString, ticketPreviewScale), designMode = designMode, paperWidth = paperWidth)
                                     updateTemplate(templates, updated, ::persist)
                                     notice = UsbEscPosPrinter.print(context, updated)
                                 }) { Icon(Icons.Default.Print, "Imprimir", tint = RoseDark) }
@@ -526,7 +526,7 @@ private fun TicketApp(context: Context) {
                                 if (!traditional) {
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                         IconButton(onClick = {
-                                            val updated = template.copy(content = designText, designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = traditionalBold, underline = traditionalUnderline, italic = traditionalItalic, paperWidth = paperWidth)
+                                            val updated = template.copy(content = serializeRichText(designValue.annotatedString, ticketPreviewScale), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = false, underline = false, italic = false, paperWidth = paperWidth)
                                             updateTemplate(templates, updated, ::persist)
                                             notice = UsbEscPosPrinter.print(context, updated)
                                         }) { Icon(Icons.Default.Print, contentDescription = "Imprimir", tint = RoseDark) }
@@ -564,7 +564,7 @@ private fun TicketApp(context: Context) {
                                         Text("Vista previa", fontWeight = FontWeight.SemiBold, color = Ink)
                                         TicketTextPreview(designText, paperWidth, Modifier.fillMaxWidth(), true, traditionalFontSize, traditionalFont, traditionalAlignment, traditionalBold, traditionalUnderline, traditionalItalic)
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            OutlinedButton(onClick = { val updated = template.copy(content = designText, designMode = designMode, paperWidth = paperWidth); updateTemplate(templates, updated, ::persist); notice = UsbEscPosPrinter.print(context, updated) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Print, null); Spacer(Modifier.width(4.dp)); Text("Imprimir") }
+                                            OutlinedButton(onClick = { val updated = template.copy(content = serializeRichText(designValue.annotatedString, ticketPreviewScale), designMode = designMode, paperWidth = paperWidth); updateTemplate(templates, updated, ::persist); notice = UsbEscPosPrinter.print(context, updated) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Print, null); Spacer(Modifier.width(4.dp)); Text("Imprimir") }
                                             Button(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Save, null); Spacer(Modifier.width(4.dp)); Text("Guardar como") }
                                         }
                                     }
