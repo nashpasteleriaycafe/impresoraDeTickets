@@ -61,157 +61,58 @@ object UsbEscPosPrinter {
         return printBitmap(context, ticket, template.paperWidth, template.feedLines)
     }
 
-    private fun renderTicketText(template: TicketTemplate): Bitmap {
-        // Traditional mode uses StaticLayout over parsed Spanned HTML so font size and family spans are honored.
-        if (template.designMode == "Tradicional") return renderTraditionalTicketText(template)
-        val width = if (template.paperWidth <= 58) 384 else 576
-        val margin = 12f
-        val availableWidth = width - margin * 2
-        val source = template.content
-        val rich = if (Regex("""<[a-zA-Z][^>]*>""").containsMatchIn(source)) {
-            android.text.Html.fromHtml(normalizeRichHtml(source), android.text.Html.FROM_HTML_MODE_LEGACY)
-        } else android.text.SpannableString(source)
-        val text = rich.toString().replace("\r\n", "\n").replace('\r', '\n')
-        val lines = text.split("\n")
-        val autoFit = template.designMode != "Tradicional"
-        val baseSize = 30f
-        val baseStyle = (if (template.bold) android.graphics.Typeface.BOLD else 0) or
-            (if (template.italic) android.graphics.Typeface.ITALIC else 0)
-        val family = when (template.fontFamily) {
-            "Serif" -> android.graphics.Typeface.SERIF
-            "Monospace" -> android.graphics.Typeface.MONOSPACE
-            else -> android.graphics.Typeface.SANS_SERIF
-        }
-        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.BLACK
-            typeface = android.graphics.Typeface.create(family, baseStyle)
-            textAlign = android.graphics.Paint.Align.LEFT
-            isUnderlineText = template.underline
-            textSize = if (autoFit) baseSize else template.fontSize.toFloat().coerceIn(10f, 80f)
-        }
-        val lineStarts = IntArray(lines.size)
-        var cursor = 0
-        lines.forEachIndexed { i, line -> lineStarts[i] = cursor; cursor += line.length + 1 }
-        fun measureLine(line: String, start: Int): Float {
-            var total = 0f
-            line.forEachIndexed { offset, ch ->
-                val index = start + offset
-                val charPaint = android.text.TextPaint(paint)
-                if (rich is android.text.Spanned && index < rich.length) {
-                    rich.getSpans(index, (index + 1).coerceAtMost(rich.length), android.text.style.CharacterStyle::class.java)
-                        .forEach { it.updateDrawState(charPaint) }
-                }
-                if (autoFit) charPaint.textSize = charPaint.textSize.coerceAtLeast(8f)
-                total += charPaint.measureText(ch.toString())
-            }
-            return total
-        }
-        val sizes = lines.mapIndexed { index, line ->
-            if (line.isEmpty()) 24f
-            else if (!autoFit) template.fontSize.toFloat().coerceIn(10f, 80f)
-            else {
-                val measured = measureLine(line, lineStarts[index]).coerceAtLeast(1f)
-                (baseSize * availableWidth / measured).coerceAtLeast(8f)
-            }
-        }
-        val heights = sizes.mapIndexed { index, size ->
-            val maxTextSize = if (lines[index].isEmpty()) size else {
-                var maxSize = size
-                lines[index].indices.forEach { offset ->
-                    val ix = lineStarts[index] + offset
-                    if (rich is android.text.Spanned && ix < rich.length) {
-                        rich.getSpans(ix, ix + 1, android.text.style.AbsoluteSizeSpan::class.java).forEach { maxSize = maxOf(maxSize, it.size.toFloat()) }
-                        rich.getSpans(ix, ix + 1, android.text.style.RelativeSizeSpan::class.java).forEach { maxSize = maxOf(maxSize, size * it.sizeChange) }
-                    }
-                }
-                maxSize
-            }
-            maxTextSize * 1.22f
-        }
-        val height = (heights.sum() + 12f).toInt().coerceAtLeast(24)
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = android.graphics.Canvas(bitmap)
-        canvas.drawColor(android.graphics.Color.WHITE)
-        var y = 6f
-        lines.forEachIndexed { lineIndex, line ->
-            val start = lineStarts[lineIndex]
-            val lineSize = sizes[lineIndex]
-            paint.textSize = lineSize
-            val measured = measureLine(line, start)
-            val paragraphAlignment = if (rich is android.text.Spanned && line.isNotEmpty()) {
-                rich.getSpans(start, (start + line.length).coerceAtMost(rich.length), android.text.style.AlignmentSpan::class.java)
-                    .lastOrNull()?.alignment
-            } else null
-            val alignmentName = when (paragraphAlignment) {
-                android.text.Layout.Alignment.ALIGN_CENTER -> "Centro"
-                android.text.Layout.Alignment.ALIGN_OPPOSITE -> "Derecha"
-                android.text.Layout.Alignment.ALIGN_NORMAL -> "Izquierda"
-                else -> template.alignment
-            }
-            val xStart = when (alignmentName) {
-                "Centro" -> (width - measured) / 2f
-                "Derecha" -> width - margin - measured
-                else -> margin
-            }.coerceAtLeast(0f)
-            val baseline = y - paint.fontMetrics.ascent
-            var x = xStart
-            line.forEachIndexed { offset, ch ->
-                val index = start + offset
-                val charPaint = android.text.TextPaint(paint)
-                if (rich is android.text.Spanned && index < rich.length) {
-                    rich.getSpans(index, (index + 1).coerceAtMost(rich.length), android.text.style.CharacterStyle::class.java)
-                        .forEach { it.updateDrawState(charPaint) }
-                }
-                if (autoFit) {
-                    val spanSize = charPaint.textSize
-                    charPaint.textSize = (lineSize * (spanSize / baseSize)).coerceAtLeast(8f)
-                }
-                val piece = ch.toString()
-                canvas.drawText(piece, x, baseline, charPaint)
-                x += charPaint.measureText(piece)
-            }
-            y += heights[lineIndex]
-        }
-        return bitmap
-    }
+    private fun renderTicketText(template: TicketTemplate): Bitmap =
+        renderRichTicketText(template, automatic = template.designMode != "Tradicional")
 
+    /** Uses Android's paragraph layout engine in both modes so wrapped lines never overlap or clip. */
+    private fun renderTraditionalTicketText(template: TicketTemplate): Bitmap =
+        renderRichTicketText(template, automatic = false)
 
-    /** Traditional editor output: wrap to the physical print width and honor paragraph alignment. */
-    private fun renderTraditionalTicketText(template: TicketTemplate): Bitmap {
+    private fun renderRichTicketText(template: TicketTemplate, automatic: Boolean): Bitmap {
         val width = if (template.paperWidth <= 58) 384 else 576
         val margin = 12
+        val availableWidth = (width - margin * 2).coerceAtLeast(1)
         val source = template.content
-        val parsed = if (source.contains("<", true) && source.contains(">", true)) {
+        val containsHtml = Regex("""<[a-zA-Z][^>]*>""").containsMatchIn(source)
+        val parsed = if (containsHtml) {
             android.text.Html.fromHtml(normalizeRichHtml(source), android.text.Html.FROM_HTML_MODE_LEGACY)
-        } else android.text.SpannedString(source)
+        } else {
+            android.text.SpannableStringBuilder(source.replace("\\r\\n", "\\n").replace('\\r', '\\n'))
+        }
         val rich = android.text.SpannableStringBuilder(parsed)
+        while (rich.isNotEmpty() && rich.last() == '\\n') rich.delete(rich.length - 1, rich.length)
+
         val family = when (template.fontFamily) {
             "Serif" -> android.graphics.Typeface.SERIF
             "Monospace" -> android.graphics.Typeface.MONOSPACE
             else -> android.graphics.Typeface.SANS_SERIF
         }
-        val style = (if (template.bold) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL) or
+        val baseStyle = if (containsHtml) android.graphics.Typeface.NORMAL else
+            (if (template.bold) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL) or
             (if (template.italic) android.graphics.Typeface.ITALIC else 0)
+        val baseSize = if (automatic) 28f else template.fontSize.toFloat().coerceIn(8f, 80f)
         val paint = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.BLACK
-            textSize = template.fontSize.toFloat().coerceIn(8f, 80f)
-            typeface = android.graphics.Typeface.create(family, style)
-            isUnderlineText = template.underline
+            textSize = baseSize
+            typeface = android.graphics.Typeface.create(family, baseStyle)
+            isUnderlineText = !containsHtml && template.underline
         }
-        if (rich.isNotEmpty()) {
-            if (template.bold) rich.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, rich.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            if (template.italic) rich.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.ITALIC), 0, rich.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            if (template.underline) rich.setSpan(android.text.style.UnderlineSpan(), 0, rich.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+
+        if (rich.isEmpty()) {
+            return Bitmap.createBitmap(width, 24, Bitmap.Config.ARGB_8888).also { bitmap ->
+                android.graphics.Canvas(bitmap).drawColor(android.graphics.Color.WHITE)
+            }
         }
-        val alignment = when (template.alignment) {
+
+        val fallbackAlignment = when (template.alignment) {
             "Centro" -> android.text.Layout.Alignment.ALIGN_CENTER
             "Derecha" -> android.text.Layout.Alignment.ALIGN_OPPOSITE
             else -> android.text.Layout.Alignment.ALIGN_NORMAL
         }
-        val builder = android.text.StaticLayout.Builder.obtain(rich, 0, rich.length, paint, (width - margin * 2).coerceAtLeast(1))
-            .setAlignment(alignment)
+        val builder = android.text.StaticLayout.Builder.obtain(rich, 0, rich.length, paint, availableWidth)
+            .setAlignment(fallbackAlignment)
             .setIncludePad(false)
-            .setLineSpacing(0f, 1.12f)
+            .setLineSpacing(0f, 1.10f)
             .setBreakStrategy(android.text.Layout.BREAK_STRATEGY_SIMPLE)
             .setHyphenationFrequency(android.text.Layout.HYPHENATION_FREQUENCY_NONE)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
@@ -221,8 +122,8 @@ object UsbEscPosPrinter {
             )
         }
         val layout = builder.build()
-        val height = (layout.height + 12).coerceAtLeast(24)
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val bitmapHeight = (layout.height + 12).coerceAtLeast(24)
+        val bitmap = Bitmap.createBitmap(width, bitmapHeight, Bitmap.Config.ARGB_8888)
         val canvas = android.graphics.Canvas(bitmap)
         canvas.drawColor(android.graphics.Color.WHITE)
         canvas.save()
