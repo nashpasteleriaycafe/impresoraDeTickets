@@ -17,33 +17,52 @@ object UsbEscPosPrinter {
     private const val ACTION_USB_PERMISSION = "com.nashpasteleria.impresoradetickets.USB_PERMISSION"
 
     private fun normalizeRichHtml(source: String): String {
-        val spanPattern = Regex("""<span\b([^>]*)>""", RegexOption.IGNORE_CASE)
-        var html = spanPattern.replace(source) { match ->
-            val attributes = match.groupValues[1]
-            val style = Regex("""style\s*=\s*["']([^"']*)["']""", RegexOption.IGNORE_CASE)
-                .find(attributes)?.groupValues?.get(1).orEmpty()
-            val family = Regex("""font-family\s*:\s*([^;]+)""", RegexOption.IGNORE_CASE)
-                .find(style)?.groupValues?.get(1)?.trim()?.trim('"', '\'')
-            val pxSize = Regex("""font-size\s*:\s*([0-9.]+)\s*(px|pt|sp)?""", RegexOption.IGNORE_CASE)
-                .find(style)?.groupValues?.get(1)?.toFloatOrNull()
-            val htmlSize = pxSize?.let { size ->
-                when {
-                    size < 12f -> 2
-                    size < 14f -> 3
-                    size < 16f -> 4
-                    size < 20f -> 5
-                    size < 28f -> 6
-                    else -> 7
+        // Android's Html.fromHtml does not reliably honor CSS inside <span>.
+        // Convert each span to explicit HTML tags while preserving its own style.
+        val spanClosures = mutableListOf<String>()
+        var html = Regex("""<span\b([^>]*)>|</span\s*>""", RegexOption.IGNORE_CASE).replace(source) { match ->
+            if (match.value.startsWith("</", ignoreCase = true)) {
+                if (spanClosures.isNotEmpty()) spanClosures.removeAt(spanClosures.lastIndex) else ""
+            } else {
+                val attributes = match.groupValues[1]
+                val style = Regex("""style\s*=\s*["']([^"']*)["']""", RegexOption.IGNORE_CASE)
+                    .find(attributes)?.groupValues?.get(1).orEmpty()
+                val family = Regex("""font-family\s*:\s*([^;]+)""", RegexOption.IGNORE_CASE)
+                    .find(style)?.groupValues?.get(1)?.trim()?.trim('"', '\'')
+                val pxSize = Regex("""font-size\s*:\s*([0-9.]+)\s*(px|pt|sp)?""", RegexOption.IGNORE_CASE)
+                    .find(style)?.groupValues?.get(1)?.toFloatOrNull()
+                val htmlSize = pxSize?.let { size ->
+                    when {
+                        size < 12f -> 2
+                        size < 14f -> 3
+                        size < 16f -> 4
+                        size < 20f -> 5
+                        size < 28f -> 6
+                        else -> 7
+                    }
                 }
-            }
-            buildString {
-                append("<font")
-                if (!family.isNullOrBlank()) append(" face=\"" + family.replace("\"", "") + "\"")
-                if (htmlSize != null) append(" size=\"" + htmlSize + "\"")
-                append(">")
+                val bold = Regex("""font-weight\s*:\s*(bold|[6-9]00)""", RegexOption.IGNORE_CASE).containsMatchIn(style)
+                val italic = Regex("""font-style\s*:\s*italic""", RegexOption.IGNORE_CASE).containsMatchIn(style)
+                val underline = Regex("""text-decoration(?:-line)?\s*:\s*[^;]*underline""", RegexOption.IGNORE_CASE).containsMatchIn(style)
+                val opening = buildString {
+                    if (bold) append("<b>")
+                    if (italic) append("<i>")
+                    if (underline) append("<u>")
+                    append("<font")
+                    if (!family.isNullOrBlank()) append(" face=\"").append(family.replace("\"", "")).append("\"")
+                    if (htmlSize != null) append(" size=\"").append(htmlSize).append("\"")
+                    append(">")
+                }
+                val closing = buildString {
+                    append("</font>")
+                    if (underline) append("</u>")
+                    if (italic) append("</i>")
+                    if (bold) append("</b>")
+                }
+                spanClosures.add(closing)
+                opening
             }
         }
-        html = html.replace(Regex("""</span\s*>""", RegexOption.IGNORE_CASE), "</font>")
         html = Regex("""<p\b([^>]*)>""", RegexOption.IGNORE_CASE).replace(html) { match ->
             val attributes = match.groupValues[1]
             val alignment = Regex("""text-align\s*:\s*(left|center|right|justify)""", RegexOption.IGNORE_CASE)
