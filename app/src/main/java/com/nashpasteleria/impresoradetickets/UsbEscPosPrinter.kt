@@ -105,7 +105,7 @@ object UsbEscPosPrinter {
         val parsed = if (containsHtml) {
             android.text.Html.fromHtml(normalizedHtml, android.text.Html.FROM_HTML_MODE_LEGACY)
         } else {
-            android.text.SpannableStringBuilder(source.replace("\\r\\n", "\\n").replace('\\r', '\\n'))
+            android.text.SpannableStringBuilder(source.replace("\r\n", "\n").replace('\r', '\n'))
         }
         val rich = android.text.SpannableStringBuilder(parsed)
         if (containsHtml) {
