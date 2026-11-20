@@ -181,16 +181,14 @@ object UsbEscPosPrinter {
                 if (newline < 0) break
                 lineStart = newline + 1
             }
-            val widestLine = lineRanges.maxOfOrNull { (start, end) ->
-                paint.measureText(rich, start, end)
-            }?.coerceAtLeast(1f) ?: 1f
-            val widthFit = ((availableWidth - 20f).coerceAtLeast(1f) / widestLine).coerceAtMost(1f)
+            val targetLineWidth = (availableWidth - 20f).coerceAtLeast(1f)
             lineRanges.forEach { (start, end) ->
                 val measured = paint.measureText(rich, start, end).coerceAtLeast(1f)
-                // Longest line remains at the base size (or shrinks to fit). Shorter
-                // paragraphs grow progressively, rather than all being clamped to one size.
-                val relativeScale = kotlin.math.sqrt(widestLine / measured)
-                val lineSizePx = (baseSize * widthFit * relativeScale).toInt().coerceIn(8, 72)
+                // Each line is scaled independently to occupy the usable ticket width.
+                // This mirrors the automatic preview instead of applying a square-root
+                // growth factor that left short lines visibly narrower than the paper.
+                val lineSizePx = (baseSize * targetLineWidth / measured)
+                    .toInt().coerceIn(8, 240)
                 rich.setSpan(
                     android.text.style.AbsoluteSizeSpan(lineSizePx, false),
                     start, end,
