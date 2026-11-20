@@ -1046,7 +1046,7 @@ private fun RichHtmlPreview(content: String, modifier: Modifier = Modifier) {
 @Composable
 private fun RichTicketEditor(content: String, onContentChange: (String) -> Unit, modifier: Modifier = Modifier) {
     var web by remember { mutableStateOf<WebView?>(null) }
-    val initial = remember(content.take(100), content.length) { if (content.trimStart().startsWith("<p", true) || content.contains("<table", true) || content.contains("<div", true)) content else "<p>" + android.text.TextUtils.htmlEncode(content).replace("\n", "<br>") + "</p>" }
+    val initial = remember(content.take(100), content.length) { if (Regex("""<[a-zA-Z][^>]*>""").containsMatchIn(content)) content else "<p>" + android.text.TextUtils.htmlEncode(content).replace("\n", "<br>") + "</p>" }
     var fonts by remember { mutableStateOf(false) }
     var sizes by remember { mutableStateOf(false) }
     var vars by remember { mutableStateOf(false) }
