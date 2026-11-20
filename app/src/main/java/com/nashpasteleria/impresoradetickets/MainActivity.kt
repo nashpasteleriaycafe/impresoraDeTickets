@@ -347,23 +347,13 @@ private fun TicketApp(context: Context) {
                         "Derecha" -> TextAlign.End
                         else -> TextAlign.Start
                     }
-                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.TopCenter) {
-                        Card(
-                            Modifier.width(paperDisplayWidth).fillMaxHeight(),
-                            shape = RoundedCornerShape(3.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
-                        ) {
-                            Box(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 7.dp)) {
-                                key(template.id) {
-                                    RichTicketEditor(
-                                        content = traditionalHtml,
-                                        onContentChange = { traditionalHtml = it },
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                }
-                            }
-                        }
+                    key(template.id) {
+                        RichTicketEditor(
+                            content = traditionalHtml,
+                            onContentChange = { traditionalHtml = it },
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            paperWidth = paperDisplayWidth
+                        )
                     }
                 } else {
                     Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1044,7 +1034,7 @@ private fun RichHtmlPreview(content: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun RichTicketEditor(content: String, onContentChange: (String) -> Unit, modifier: Modifier = Modifier) {
+private fun RichTicketEditor(content: String, onContentChange: (String) -> Unit, modifier: Modifier = Modifier, paperWidth: androidx.compose.ui.unit.Dp? = null) {
     var web by remember { mutableStateOf<WebView?>(null) }
     val initial = remember(content.take(100), content.length) { if (Regex("""<[a-zA-Z][^>]*>""").containsMatchIn(content)) content else "<p>" + android.text.TextUtils.htmlEncode(content).replace("\n", "<br>") + "</p>" }
     var fonts by remember { mutableStateOf(false) }
@@ -1078,7 +1068,12 @@ private fun RichTicketEditor(content: String, onContentChange: (String) -> Unit,
                 DropdownMenu(expanded = vars, onDismissRequest = { vars = false }) { listOf("Fecha" to "{{fecha}}", "Hora" to "{{hora}}", "Producto" to "{{producto}}", "Cantidad" to "{{cantidad}}", "Precio" to "{{precio}}", "Total" to "{{total}}").forEach { (label, value) -> DropdownMenuItem(text = { Text(label) }, onClick = { web?.evaluateJavascript("document.execCommand('insertText',false,'" + value + "')", null); vars = false }) } }
             }
         }
-        AndroidView(modifier = Modifier.fillMaxWidth().heightIn(min = 190.dp, max = 320.dp).border(1.dp, Line, RoundedCornerShape(12.dp)).clip(RoundedCornerShape(12.dp)), factory = { ctx ->
+        Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.TopCenter) {
+            val editorSurface: @Composable () -> Unit = {
+                AndroidView(
+                    modifier = Modifier.fillMaxWidth().then(if (paperWidth == null) Modifier.heightIn(min = 190.dp, max = 320.dp) else Modifier.fillMaxHeight())
+                        .border(1.dp, Line, RoundedCornerShape(4.dp)).clip(RoundedCornerShape(4.dp)),
+                    factory = { ctx ->
             WebView(ctx).apply {
                 settings.javaScriptEnabled = true; setBackgroundColor(android.graphics.Color.WHITE); isVerticalScrollBarEnabled = true
                 addJavascriptInterface(object { @JavascriptInterface fun changed(html: String) { android.os.Handler(android.os.Looper.getMainLooper()).post { onContentChange(html) } } }, "TicketEditor")
@@ -1088,6 +1083,22 @@ private fun RichTicketEditor(content: String, onContentChange: (String) -> Unit,
                 post { evaluateJavascript("document.body.innerHTML=" + org.json.JSONObject.quote(initial), null) }; web = this
             }
         }, update = { web = it })
+            }
+            if (paperWidth != null) {
+                Card(
+                    modifier = Modifier.width(paperWidth).fillMaxHeight(),
+                    shape = RoundedCornerShape(3.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                ) {
+                    Box(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 7.dp)) {
+                        editorSurface()
+                    }
+                }
+            } else {
+                editorSurface()
+            }
+        }
     }
 }
 @Composable
