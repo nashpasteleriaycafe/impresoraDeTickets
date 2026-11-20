@@ -164,29 +164,38 @@ object UsbEscPosPrinter {
         // Automatic mode sizes each explicit paragraph independently, matching the
         // preview behavior. Preserve explicitly formatted HTML sizes when present.
         if (automatic && rich.isNotEmpty()) {
-            // Automatic mode owns the size of every paragraph, even when the source HTML
-            // contains old font-size spans left by the editor. Otherwise those spans make
-            // every line print at the same size and silently disable automatic fitting.
+            // Automatic mode derives a size per paragraph from the actual text width.
+            // A hard upper cap on each line made nearly every short line hit the same
+            // maximum size, which is why the previous version looked uniform.
             rich.getSpans(0, rich.length, android.text.style.AbsoluteSizeSpan::class.java)
                 .forEach { rich.removeSpan(it) }
             rich.getSpans(0, rich.length, android.text.style.RelativeSizeSpan::class.java)
                 .forEach { rich.removeSpan(it) }
+
+            val lineRanges = mutableListOf<Pair<Int, Int>>()
             var lineStart = 0
             while (lineStart < rich.length) {
                 val newline = rich.indexOf("\n", lineStart)
                 val lineEnd = if (newline < 0) rich.length else newline
-                if (lineEnd > lineStart) {
-                    val measured = paint.measureText(rich, lineStart, lineEnd).coerceAtLeast(1f)
-                    val fitScale = ((availableWidth - 20f).coerceAtLeast(1f) / measured).coerceIn(0.5f, 2.0f)
-                    val lineSizePx = (baseSize * fitScale).toInt().coerceIn(8, 56)
-                    rich.setSpan(
-                        android.text.style.AbsoluteSizeSpan(lineSizePx, false),
-                        lineStart, lineEnd,
-                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                    )
-                }
+                if (lineEnd > lineStart) lineRanges.add(lineStart to lineEnd)
                 if (newline < 0) break
                 lineStart = newline + 1
+            }
+            val widestLine = lineRanges.maxOfOrNull { (start, end) ->
+                paint.measureText(rich, start, end)
+            }?.coerceAtLeast(1f) ?: 1f
+            val widthFit = ((availableWidth - 20f).coerceAtLeast(1f) / widestLine).coerceAtMost(1f)
+            lineRanges.forEach { (start, end) ->
+                val measured = paint.measureText(rich, start, end).coerceAtLeast(1f)
+                // Longest line remains at the base size (or shrinks to fit). Shorter
+                // paragraphs grow progressively, rather than all being clamped to one size.
+                val relativeScale = kotlin.math.sqrt(widestLine / measured)
+                val lineSizePx = (baseSize * widthFit * relativeScale).toInt().coerceIn(8, 72)
+                rich.setSpan(
+                    android.text.style.AbsoluteSizeSpan(lineSizePx, false),
+                    start, end,
+                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
             }
         }
 
