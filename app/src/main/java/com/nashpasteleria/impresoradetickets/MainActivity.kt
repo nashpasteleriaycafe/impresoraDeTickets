@@ -328,48 +328,13 @@ private fun TicketApp(context: Context) {
                     FilterChip(selected = traditional, onClick = { designMode = "Tradicional" }, label = { Text("Tradicional", fontSize = 10.sp) })
                 }
                 if (traditional) {
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-                        var sizeMenu by remember { mutableStateOf(false) }
-                        Box {
-                            TextButton(onClick = { sizeMenu = true }, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)) {
-                                Text("${traditionalFontSize}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Tamaño de fuente", modifier = Modifier.size(18.dp))
-                            }
-                            DropdownMenu(expanded = sizeMenu, onDismissRequest = { sizeMenu = false }) {
-                                listOf(10, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 40).forEach { size ->
-                                    DropdownMenuItem(text = { Text("${size} sp") }, onClick = { traditionalFontSize = size; applyLineFormatting("size", size.toString()); sizeMenu = false })
-                                }
-                            }
-                        }
-                        var fontMenu by remember { mutableStateOf(false) }
-                        Box {
-                            TextButton(onClick = { fontMenu = true }, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)) {
-                                Text(when (traditionalFont) { "Serif" -> "Serif"; "Monospace" -> "Mono"; else -> "Sans" }, fontSize = 12.sp)
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Estilo de fuente", modifier = Modifier.size(18.dp))
-                            }
-                            DropdownMenu(expanded = fontMenu, onDismissRequest = { fontMenu = false }) {
-                                listOf("Sans Serif", "Serif", "Monospace").forEach { font ->
-                                    DropdownMenuItem(text = { Text(font) }, onClick = { traditionalFont = font; applyLineFormatting("font", font); fontMenu = false })
-                                }
-                            }
-                        }
-                        VerticalDivider(Modifier.height(26.dp), color = Line)
-                        IconButton(onClick = { applyLineFormatting("alignment", "Izquierda") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatAlignLeft, "Alinear a la izquierda", tint = if (traditionalAlignment == "Izquierda") RoseDark else Ink, modifier = Modifier.size(20.dp)) }
-                        IconButton(onClick = { applyLineFormatting("alignment", "Centro") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatAlignCenter, "Centrar", tint = if (traditionalAlignment == "Centro") RoseDark else Ink, modifier = Modifier.size(20.dp)) }
-                        IconButton(onClick = { applyLineFormatting("alignment", "Derecha") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatAlignRight, "Alinear a la derecha", tint = if (traditionalAlignment == "Derecha") RoseDark else Ink, modifier = Modifier.size(20.dp)) }
-                        VerticalDivider(Modifier.height(26.dp), color = Line)
-                        IconButton(onClick = { applyFormatting("bold") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatBold, "Negrita", tint = Ink, modifier = Modifier.size(20.dp)) }
-                        IconButton(onClick = { applyFormatting("italic") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatItalic, "Cursiva", tint = Ink, modifier = Modifier.size(20.dp)) }
-                        IconButton(onClick = { applyFormatting("underline") }, modifier = Modifier.size(34.dp)) { Icon(Icons.Default.FormatUnderlined, "Subrayado", tint = Ink, modifier = Modifier.size(20.dp)) }
-                        TextButton(onClick = { richEditorState.toggleUnorderedList() }, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)) { Text("• Lista", fontSize = 11.sp) }
-                        TextButton(onClick = { richEditorState.toggleOrderedList() }, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)) { Text("1. Lista", fontSize = 11.sp) }
-                        VerticalDivider(Modifier.height(26.dp), color = Line)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         IconButton(onClick = {
-                            val updated = template.copy(content = traditionalHtml, designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = false, underline = false, italic = false, paperWidth = paperWidth)
+                            val updated = template.copy(content = traditionalHtml, designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, paperWidth = paperWidth)
                             updateTemplate(templates, updated, ::persist)
                             notice = UsbEscPosPrinter.print(context, updated)
-                        }, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Print, "Imprimir", tint = RoseDark, modifier = Modifier.size(20.dp)) }
-                        IconButton(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Save, "Guardar plantilla", tint = RoseDark, modifier = Modifier.size(20.dp)) }
+                        }) { Icon(Icons.Default.Print, "Imprimir", tint = RoseDark) }
+                        IconButton(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }) { Icon(Icons.Default.Save, "Guardar plantilla", tint = RoseDark) }
                     }
                 }
                 if (traditional) {
@@ -451,57 +416,13 @@ private fun TicketApp(context: Context) {
                             }
 
                             if (traditional) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                ) {
-                                    var sizeMenu by remember { mutableStateOf(false) }
-                                    Box {
-                                        TextButton(onClick = { sizeMenu = true }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
-                                            Text("${traditionalFontSize} sp", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Tamaño de fuente")
-                                        }
-                                        DropdownMenu(expanded = sizeMenu, onDismissRequest = { sizeMenu = false }) {
-                                            listOf(10, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 40).forEach { size ->
-                                                DropdownMenuItem(text = { Text("${size} sp") }, onClick = { traditionalFontSize = size; applyLineFormatting("size", size.toString()); sizeMenu = false })
-                                            }
-                                        }
-                                    }
-                                    var fontMenu by remember { mutableStateOf(false) }
-                                    Box {
-                                        TextButton(onClick = { fontMenu = true }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
-                                            Text(when (traditionalFont) { "Serif" -> "Serif"; "Monospace" -> "Mono"; else -> "Sans" }, fontSize = 13.sp)
-                                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Estilo de fuente")
-                                        }
-                                        DropdownMenu(expanded = fontMenu, onDismissRequest = { fontMenu = false }) {
-                                            listOf("Sans Serif", "Serif", "Monospace").forEach { font ->
-                                                DropdownMenuItem(text = { Text(font) }, onClick = { traditionalFont = font; applyLineFormatting("font", font); fontMenu = false })
-                                            }
-                                        }
-                                    }
-                                    VerticalDivider(Modifier.height(28.dp), color = Line)
-                                    @Composable fun formatButton(selectedState: Boolean, description: String, onClick: () -> Unit, icon: androidx.compose.ui.graphics.vector.ImageVector) {
-                                        IconButton(onClick = onClick, modifier = Modifier.size(38.dp)) {
-                                            Icon(icon, contentDescription = description, tint = if (selectedState) RoseDark else Ink)
-                                        }
-                                    }
-                                    formatButton(traditionalAlignment == "Izquierda", "Alinear a la izquierda", { applyLineFormatting("alignment", "Izquierda") }, Icons.Default.FormatAlignLeft)
-                                    formatButton(traditionalAlignment == "Centro", "Centrar", { applyLineFormatting("alignment", "Centro") }, Icons.Default.FormatAlignCenter)
-                                    formatButton(traditionalAlignment == "Derecha", "Alinear a la derecha", { applyLineFormatting("alignment", "Derecha") }, Icons.Default.FormatAlignRight)
-                                    VerticalDivider(Modifier.height(28.dp), color = Line)
-                                    formatButton(richEditorState.currentSpanStyle.fontWeight == FontWeight.Bold, "Negrita", { applyFormatting("bold") }, Icons.Default.FormatBold)
-                                    formatButton(richEditorState.currentSpanStyle.fontStyle == androidx.compose.ui.text.font.FontStyle.Italic, "Cursiva", { applyFormatting("italic") }, Icons.Default.FormatItalic)
-                                    formatButton(richEditorState.currentSpanStyle.textDecoration == androidx.compose.ui.text.style.TextDecoration.Underline, "Subrayado", { applyFormatting("underline") }, Icons.Default.FormatUnderlined)
-                                    VerticalDivider(Modifier.height(28.dp), color = Line)
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                     IconButton(onClick = {
-                                        val updated = template.copy(content = richEditorState.toHtml(), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = false, underline = false, italic = false, paperWidth = paperWidth)
+                                        val updated = template.copy(content = traditionalHtml, designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, paperWidth = paperWidth)
                                         updateTemplate(templates, updated, ::persist)
                                         notice = UsbEscPosPrinter.print(context, updated)
-                                    }, modifier = Modifier.size(38.dp)) { Icon(Icons.Default.Print, contentDescription = "Imprimir", tint = RoseDark) }
-                                    IconButton(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.size(38.dp)) {
-                                        Icon(Icons.Default.Save, contentDescription = "Guardar plantilla", tint = RoseDark)
-                                    }
+                                    }) { Icon(Icons.Default.Print, "Imprimir", tint = RoseDark) }
+                                    IconButton(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }) { Icon(Icons.Default.Save, "Guardar plantilla", tint = RoseDark) }
                                 }
                             }
 
@@ -1135,10 +1056,12 @@ private fun RichTicketEditor(content: String, onContentChange: (String) -> Unit,
             Box { OutlinedButton(onClick = { sizes = true }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("Tamaño") }; DropdownMenu(expanded = sizes, onDismissRequest = { sizes = false }) { listOf("Chico" to 2, "Normal" to 3, "Grande" to 5, "Muy grande" to 6).forEach { (label, value) -> DropdownMenuItem(text = { Text(label) }, onClick = { web?.evaluateJavascript("document.execCommand('fontSize',false,'" + value + "')", null); sizes = false }) } } }
             OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('bold')", null) }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)) { Text("B", fontWeight = FontWeight.Bold) }
             OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('italic')", null) }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)) { Text("I", fontStyle = androidx.compose.ui.text.font.FontStyle.Italic) }
+            OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('underline')", null) }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)) { Text("U", textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('justifyLeft')", null) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("Izquierda") }
             OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('justifyCenter')", null) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("Centrar") }
+            OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('justifyRight')", null) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("Derecha") }
             OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('insertHTML',false,'<table border=\"1\" style=\"width:100%;border-collapse:collapse\"><tr><td>Celda 1</td><td>Celda 2</td></tr><tr><td>Celda 3</td><td>Celda 4</td></tr></table><p><br></p>')", null) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("+ Tabla") }
             Box { OutlinedButton(onClick = { vars = true }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("+ Variable") }; DropdownMenu(expanded = vars, onDismissRequest = { vars = false }) { listOf("Fecha" to "{{fecha}}", "Hora" to "{{hora}}", "Producto" to "{{producto}}", "Cantidad" to "{{cantidad}}", "Precio" to "{{precio}}", "Total" to "{{total}}").forEach { (label, value) -> DropdownMenuItem(text = { Text(label) }, onClick = { web?.evaluateJavascript("document.execCommand('insertText',false,'" + value + "')", null); vars = false }) } } }
         }
