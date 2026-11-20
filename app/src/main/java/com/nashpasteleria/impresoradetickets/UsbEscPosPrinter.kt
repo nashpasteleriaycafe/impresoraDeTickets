@@ -163,10 +163,14 @@ object UsbEscPosPrinter {
 
         // Automatic mode sizes each explicit paragraph independently, matching the
         // preview behavior. Preserve explicitly formatted HTML sizes when present.
-        val hasExplicitSizes =
-            rich.getSpans(0, rich.length, android.text.style.AbsoluteSizeSpan::class.java).isNotEmpty() ||
-            rich.getSpans(0, rich.length, android.text.style.RelativeSizeSpan::class.java).isNotEmpty()
-        if (automatic && !hasExplicitSizes && rich.isNotEmpty()) {
+        if (automatic && rich.isNotEmpty()) {
+            // Automatic mode owns the size of every paragraph, even when the source HTML
+            // contains old font-size spans left by the editor. Otherwise those spans make
+            // every line print at the same size and silently disable automatic fitting.
+            rich.getSpans(0, rich.length, android.text.style.AbsoluteSizeSpan::class.java)
+                .forEach { rich.removeSpan(it) }
+            rich.getSpans(0, rich.length, android.text.style.RelativeSizeSpan::class.java)
+                .forEach { rich.removeSpan(it) }
             var lineStart = 0
             while (lineStart < rich.length) {
                 val newline = rich.indexOf("\n", lineStart)
