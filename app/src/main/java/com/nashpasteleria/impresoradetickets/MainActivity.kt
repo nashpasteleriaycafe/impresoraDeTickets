@@ -193,6 +193,7 @@ private fun TicketApp(context: Context) {
     val selected = templates.firstOrNull { it.id == selectedId } ?: templates.firstOrNull()
     val ticketPreviewScale = minOf(if (paperWidth <= 58) 240 else 320, configuration.screenWidthDp - 32).coerceAtLeast(180).toFloat() / (if (paperWidth <= 58) 384f else 576f)
     var designValue by remember(selected?.id) { mutableStateOf(TextFieldValue(selected?.content?.let { ticketContentToAnnotatedString(it, ticketPreviewScale) } ?: AnnotatedString(""))) }
+    var traditionalHtml by remember(selected?.id) { mutableStateOf(selected?.content.orEmpty()) }
     val richEditorState = rememberRichTextState()
     LaunchedEffect(selected?.id) {
         richEditorState.setHtml(selected?.content.orEmpty())
@@ -364,7 +365,7 @@ private fun TicketApp(context: Context) {
                         TextButton(onClick = { richEditorState.toggleOrderedList() }, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)) { Text("1. Lista", fontSize = 11.sp) }
                         VerticalDivider(Modifier.height(26.dp), color = Line)
                         IconButton(onClick = {
-                            val updated = template.copy(content = richEditorState.toHtml(), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = false, underline = false, italic = false, paperWidth = paperWidth)
+                            val updated = template.copy(content = traditionalHtml, designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = false, underline = false, italic = false, paperWidth = paperWidth)
                             updateTemplate(templates, updated, ::persist)
                             notice = UsbEscPosPrinter.print(context, updated)
                         }, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Print, "Imprimir", tint = RoseDark, modifier = Modifier.size(20.dp)) }
@@ -389,11 +390,13 @@ private fun TicketApp(context: Context) {
                             elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                         ) {
                             Box(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 7.dp)) {
-                                RichTextEditor(
-                                    state = richEditorState,
-                                    modifier = Modifier.fillMaxSize(),
-                                    placeholder = { Text("Escribí el ticket…", color = Muted, fontSize = editorFontSize) }
-                                )
+                                key(template.id) {
+                                    RichTicketEditor(
+                                        content = traditionalHtml,
+                                        onContentChange = { traditionalHtml = it },
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
                             }
                         }
                     }
@@ -537,11 +540,13 @@ private fun TicketApp(context: Context) {
                                 CardBlock {
                                     if (traditional) {
                                         Box(Modifier.fillMaxWidth().heightIn(min = 190.dp)) {
-                                            RichTextEditor(
-                                                state = richEditorState,
-                                                modifier = Modifier.fillMaxWidth().heightIn(min = 190.dp),
-                                                placeholder = { Text("Escribí el ticket…", color = Muted) }
-                                            )
+                                            key(template.id) {
+                                                RichTicketEditor(
+                                                    content = traditionalHtml,
+                                                    onContentChange = { traditionalHtml = it },
+                                                    modifier = Modifier.fillMaxWidth()
+                                                )
+                                            }
                                         }
                                         Text("Vista previa con formato", fontWeight = FontWeight.SemiBold, color = Ink)
                                         Card(
@@ -549,7 +554,7 @@ private fun TicketApp(context: Context) {
                                             colors = CardDefaults.cardColors(containerColor = Color.White),
                                             border = androidx.compose.foundation.BorderStroke(1.dp, Line)
                                         ) {
-                                            RichText(state = richEditorState, modifier = Modifier.fillMaxWidth().padding(8.dp))
+                                            RichHtmlPreview(traditionalHtml, Modifier.fillMaxWidth().padding(8.dp))
                                         }
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             OutlinedButton(onClick = {
@@ -829,7 +834,7 @@ private fun TicketApp(context: Context) {
                         val source = selected
                         val created = TicketTemplate(
                             name = name,
-                            content = if (activeTab == AppTab.DESIGN) { if (designMode == "Tradicional") richEditorState.toHtml() else serializeRichText(designValue.annotatedString, ticketPreviewScale) } else source?.content ?: "",
+                            content = if (activeTab == AppTab.DESIGN) { if (designMode == "Tradicional") traditionalHtml else serializeRichText(designValue.annotatedString, ticketPreviewScale) } else source?.content ?: "",
                             designMode = if (activeTab == AppTab.DESIGN) designMode else source?.designMode ?: "Ajuste automático", fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = if (designMode == "Tradicional") false else traditionalBold, underline = if (designMode == "Tradicional") false else traditionalUnderline, italic = if (designMode == "Tradicional") false else traditionalItalic,
                             paperWidth = paperWidth,
                             feedLines = source?.feedLines ?: 3,
@@ -1103,6 +1108,21 @@ private fun renderPdfPages(context: Context, uri: Uri, paperWidth: Int): List<Bi
 }
 
 @Composable
+private fun RichHtmlPreview(content: String, modifier: Modifier = Modifier) {
+    AndroidView(
+        modifier = modifier,
+        factory = { ctx -> android.widget.TextView(ctx).apply {
+            setTextColor(android.graphics.Color.BLACK)
+            textSize = 16f
+            setPadding(0, 0, 0, 0)
+        } },
+        update = { view ->
+            view.text = android.text.Html.fromHtml(content, android.text.Html.FROM_HTML_MODE_LEGACY)
+        }
+    )
+}
+
+@Composable
 private fun RichTicketEditor(content: String, onContentChange: (String) -> Unit, modifier: Modifier = Modifier) {
     var web by remember { mutableStateOf<WebView?>(null) }
     val initial = remember(content.take(100), content.length) { if (content.trimStart().startsWith("<p", true) || content.contains("<table", true) || content.contains("<div", true)) content else "<p>" + android.text.TextUtils.htmlEncode(content).replace("\n", "<br>") + "</p>" }
@@ -1122,7 +1142,7 @@ private fun RichTicketEditor(content: String, onContentChange: (String) -> Unit,
             OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('insertHTML',false,'<table border=\"1\" style=\"width:100%;border-collapse:collapse\"><tr><td>Celda 1</td><td>Celda 2</td></tr><tr><td>Celda 3</td><td>Celda 4</td></tr></table><p><br></p>')", null) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("+ Tabla") }
             Box { OutlinedButton(onClick = { vars = true }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("+ Variable") }; DropdownMenu(expanded = vars, onDismissRequest = { vars = false }) { listOf("Fecha" to "{{fecha}}", "Hora" to "{{hora}}", "Producto" to "{{producto}}", "Cantidad" to "{{cantidad}}", "Precio" to "{{precio}}", "Total" to "{{total}}").forEach { (label, value) -> DropdownMenuItem(text = { Text(label) }, onClick = { web?.evaluateJavascript("document.execCommand('insertText',false,'" + value + "')", null); vars = false }) } } }
         }
-        AndroidView(modifier = Modifier.fillMaxWidth().height(320.dp).border(1.dp, Line, RoundedCornerShape(12.dp)).clip(RoundedCornerShape(12.dp)), factory = { ctx ->
+        AndroidView(modifier = Modifier.fillMaxWidth().heightIn(min = 190.dp, max = 320.dp).border(1.dp, Line, RoundedCornerShape(12.dp)).clip(RoundedCornerShape(12.dp)), factory = { ctx ->
             WebView(ctx).apply {
                 settings.javaScriptEnabled = true; setBackgroundColor(android.graphics.Color.WHITE); isVerticalScrollBarEnabled = true
                 addJavascriptInterface(object { @JavascriptInterface fun changed(html: String) { android.os.Handler(android.os.Looper.getMainLooper()).post { onContentChange(html) } } }, "TicketEditor")
