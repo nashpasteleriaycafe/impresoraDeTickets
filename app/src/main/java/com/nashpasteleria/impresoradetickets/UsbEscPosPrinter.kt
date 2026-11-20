@@ -169,7 +169,7 @@ object UsbEscPosPrinter {
         if (automatic && !hasExplicitSizes && rich.isNotEmpty()) {
             var lineStart = 0
             while (lineStart < rich.length) {
-                val newline = rich.indexOf("\\n", lineStart)
+                val newline = rich.indexOf("\n", lineStart)
                 val lineEnd = if (newline < 0) rich.length else newline
                 if (lineEnd > lineStart) {
                     val measured = paint.measureText(rich, lineStart, lineEnd).coerceAtLeast(1f)
