@@ -161,6 +161,31 @@ object UsbEscPosPrinter {
             isUnderlineText = !containsHtml && template.underline
         }
 
+        // Automatic mode sizes each explicit paragraph independently, matching the
+        // preview behavior. Preserve explicitly formatted HTML sizes when present.
+        val hasExplicitSizes =
+            rich.getSpans(0, rich.length, android.text.style.AbsoluteSizeSpan::class.java).isNotEmpty() ||
+            rich.getSpans(0, rich.length, android.text.style.RelativeSizeSpan::class.java).isNotEmpty()
+        if (automatic && !hasExplicitSizes && rich.isNotEmpty()) {
+            var lineStart = 0
+            while (lineStart < rich.length) {
+                val newline = rich.indexOf("\\n", lineStart)
+                val lineEnd = if (newline < 0) rich.length else newline
+                if (lineEnd > lineStart) {
+                    val measured = paint.measureText(rich, lineStart, lineEnd).coerceAtLeast(1f)
+                    val fitScale = ((availableWidth - 20f).coerceAtLeast(1f) / measured).coerceIn(0.5f, 2.0f)
+                    val lineSizePx = (baseSize * fitScale).toInt().coerceIn(8, 56)
+                    rich.setSpan(
+                        android.text.style.AbsoluteSizeSpan(lineSizePx, false),
+                        lineStart, lineEnd,
+                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                }
+                if (newline < 0) break
+                lineStart = newline + 1
+            }
+        }
+
         if (rich.isEmpty()) {
             return Bitmap.createBitmap(width, 24, Bitmap.Config.ARGB_8888).also { bitmap ->
                 android.graphics.Canvas(bitmap).drawColor(android.graphics.Color.WHITE)
