@@ -119,7 +119,7 @@ object UsbEscPosPrinter {
                     val start = rich.indexOf(spanText, searchFrom)
                     if (start >= 0) {
                         val end = (start + spanText.length).coerceAtMost(rich.length)
-                        rich.setSpan(android.text.style.AbsoluteSizeSpan(size.toInt().coerceAtLeast(1), true), start, end, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        rich.setSpan(android.text.style.AbsoluteSizeSpan(size.toInt().coerceAtLeast(1), false), start, end, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                         searchFrom = end
                     }
                 }
