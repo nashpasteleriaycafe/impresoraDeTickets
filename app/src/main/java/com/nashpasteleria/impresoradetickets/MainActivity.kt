@@ -1034,55 +1034,67 @@ private fun RichHtmlPreview(content: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun RichTicketEditor(content: String, onContentChange: (String) -> Unit, modifier: Modifier = Modifier, paperWidth: androidx.compose.ui.unit.Dp? = null) {
+private fun RichTicketEditor(
+    content: String,
+    onContentChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    paperWidth: androidx.compose.ui.unit.Dp? = null
+) {
     var web by remember { mutableStateOf<WebView?>(null) }
-    val initial = remember(content.take(100), content.length) { if (Regex("""<[a-zA-Z][^>]*>""").containsMatchIn(content)) content else "<p>" + android.text.TextUtils.htmlEncode(content).replace("\n", "<br>") + "</p>" }
+    val initial = remember(content.take(100), content.length) {
+        if (Regex("""<[a-zA-Z][^>]*>""").containsMatchIn(content)) content
+        else "<p>" + android.text.TextUtils.htmlEncode(content).replace("\n", "<br>") + "</p>"
+    }
     var fonts by remember { mutableStateOf(false) }
     var sizes by remember { mutableStateOf(false) }
     var vars by remember { mutableStateOf(false) }
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        val toolbarColors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-            containerColor = Color.White,
-            contentColor = RoseDark
-        )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1.25f)) {
-                OutlinedButton(onClick = { fonts = true }, modifier = Modifier.fillMaxWidth().height(36.dp), contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp), colors = toolbarColors) { Text("Fuente", fontSize = 11.sp, maxLines = 1, color = RoseDark) }
-                DropdownMenu(expanded = fonts, onDismissRequest = { fonts = false }) { listOf("Arial" to "Arial", "Serif" to "serif", "Monospace" to "monospace", "Sans serif" to "sans-serif").forEach { (label, value) -> DropdownMenuItem(text = { Text(label) }, onClick = { web?.evaluateJavascript("document.execCommand('fontName',false,'" + value + "')", null); fonts = false }) } }
-            }
-            Box(Modifier.weight(1.1f)) {
-                OutlinedButton(onClick = { sizes = true }, modifier = Modifier.fillMaxWidth().height(36.dp), contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp), colors = toolbarColors) { Text("Tamaño", fontSize = 11.sp, maxLines = 1, color = RoseDark) }
-                DropdownMenu(expanded = sizes, onDismissRequest = { sizes = false }) { listOf("Chico" to 2, "Normal" to 3, "Grande" to 5, "Muy grande" to 6).forEach { (label, value) -> DropdownMenuItem(text = { Text(label) }, onClick = { web?.evaluateJavascript("document.execCommand('fontSize',false,'" + value + "')", null); sizes = false }) } }
-            }
-            OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('bold')", null) }, modifier = Modifier.weight(0.55f).height(36.dp), contentPadding = PaddingValues(0.dp), colors = toolbarColors) { Text("B", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseDark) }
-            OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('italic')", null) }, modifier = Modifier.weight(0.55f).height(36.dp), contentPadding = PaddingValues(0.dp), colors = toolbarColors) { Text("I", fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, fontSize = 13.sp, color = RoseDark) }
-            OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('underline')", null) }, modifier = Modifier.weight(0.55f).height(36.dp), contentPadding = PaddingValues(0.dp), colors = toolbarColors) { Text("U", textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline, fontSize = 13.sp, color = RoseDark) }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('justifyLeft')", null) }, modifier = Modifier.weight(1f).height(36.dp), contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp), colors = toolbarColors) { Text("Izquierda", fontSize = 10.sp, maxLines = 1, color = RoseDark) }
-            OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('justifyCenter')", null) }, modifier = Modifier.weight(1f).height(36.dp), contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp), colors = toolbarColors) { Text("Centrar", fontSize = 10.sp, maxLines = 1, color = RoseDark) }
-            OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('justifyRight')", null) }, modifier = Modifier.weight(1f).height(36.dp), contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp), colors = toolbarColors) { Text("Derecha", fontSize = 10.sp, maxLines = 1, color = RoseDark) }
-            OutlinedButton(onClick = { web?.evaluateJavascript("document.execCommand('insertHTML',false,'<table border=\"1\" style=\"width:100%;border-collapse:collapse\"><tr><td>Celda 1</td><td>Celda 2</td></tr><tr><td>Celda 3</td><td>Celda 4</td></tr></table><p><br></p>')", null) }, modifier = Modifier.weight(1f).height(36.dp), contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp), colors = toolbarColors) { Text("+ Tabla", fontSize = 10.sp, maxLines = 1, color = RoseDark) }
-            Box(Modifier.weight(1f)) {
-                OutlinedButton(onClick = { vars = true }, modifier = Modifier.fillMaxWidth().height(36.dp), contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp), colors = toolbarColors) { Text("Variable", fontSize = 10.sp, maxLines = 1, color = RoseDark) }
-                DropdownMenu(expanded = vars, onDismissRequest = { vars = false }) { listOf("Fecha" to "{{fecha}}", "Hora" to "{{hora}}", "Producto" to "{{producto}}", "Cantidad" to "{{cantidad}}", "Precio" to "{{precio}}", "Total" to "{{total}}").forEach { (label, value) -> DropdownMenuItem(text = { Text(label) }, onClick = { web?.evaluateJavascript("document.execCommand('insertText',false,'" + value + "')", null); vars = false }) } }
-            }
-        }
-        Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.TopCenter) {
+    val toolbarColors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+        containerColor = Color.White,
+        contentColor = RoseDark
+    )
+    val compactButtonModifier = Modifier.size(38.dp)
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            Modifier.weight(1f).fillMaxHeight(),
+            contentAlignment = Alignment.TopCenter
+        ) {
             val editorSurface: @Composable () -> Unit = {
                 AndroidView(
-                    modifier = Modifier.fillMaxWidth().then(if (paperWidth == null) Modifier.heightIn(min = 190.dp, max = 320.dp) else Modifier.fillMaxHeight())
-                        .border(1.dp, Line, RoundedCornerShape(4.dp)).clip(RoundedCornerShape(4.dp)),
+                    modifier = Modifier.fillMaxWidth()
+                        .then(if (paperWidth == null) Modifier.heightIn(min = 190.dp, max = 420.dp) else Modifier.fillMaxHeight())
+                        .border(1.dp, Line, RoundedCornerShape(4.dp))
+                        .clip(RoundedCornerShape(4.dp)),
                     factory = { ctx ->
-            WebView(ctx).apply {
-                settings.javaScriptEnabled = true; setBackgroundColor(android.graphics.Color.WHITE); isVerticalScrollBarEnabled = true
-                addJavascriptInterface(object { @JavascriptInterface fun changed(html: String) { android.os.Handler(android.os.Looper.getMainLooper()).post { onContentChange(html) } } }, "TicketEditor")
-                webViewClient = WebViewClient()
-                val page = "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:Arial,sans-serif;font-size:16px;color:#30262a;padding:10px;margin:0;min-height:280px;outline:none}table{border-collapse:collapse;width:100%;table-layout:fixed}td,th{border:1px solid #c9aab3;padding:5px;min-width:30px;word-break:break-word}p{margin:0 0 8px}</style></head><body contenteditable=\"true\" oninput=\"TicketEditor.changed(document.body.innerHTML)\"></body></html>"
-                loadDataWithBaseURL(null, page, "text/html", "UTF-8", null)
-                post { evaluateJavascript("document.body.innerHTML=" + org.json.JSONObject.quote(initial), null) }; web = this
-            }
-        }, update = { web = it })
+                        WebView(ctx).apply {
+                            settings.javaScriptEnabled = true
+                            setBackgroundColor(android.graphics.Color.WHITE)
+                            isVerticalScrollBarEnabled = true
+                            addJavascriptInterface(object {
+                                @JavascriptInterface
+                                fun changed(html: String) {
+                                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                        onContentChange(html)
+                                    }
+                                }
+                            }, "TicketEditor")
+                            webViewClient = WebViewClient()
+                            val page = "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:Arial,sans-serif;font-size:16px;color:#30262a;padding:10px;margin:0;min-height:280px;outline:none}table{border-collapse:collapse;width:100%;table-layout:fixed}td,th{border:1px solid #c9aab3;padding:5px;min-width:30px;word-break:break-word}p{margin:0 0 8px}</style></head><body contenteditable=\"true\" oninput=\"TicketEditor.changed(document.body.innerHTML)\"></body></html>"
+                            loadDataWithBaseURL(null, page, "text/html", "UTF-8", null)
+                            post {
+                                evaluateJavascript(
+                                    "document.body.innerHTML=" + org.json.JSONObject.quote(initial),
+                                    null
+                                )
+                            }
+                            web = this
+                        }
+                    },
+                    update = { web = it }
+                )
             }
             if (paperWidth != null) {
                 Card(
@@ -1097,6 +1109,127 @@ private fun RichTicketEditor(content: String, onContentChange: (String) -> Unit,
                 }
             } else {
                 editorSurface()
+            }
+        }
+
+        Column(
+            modifier = Modifier.width(108.dp).fillMaxHeight()
+                .background(RosePale, RoundedCornerShape(8.dp))
+                .padding(5.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Box {
+                OutlinedButton(
+                    onClick = { fonts = true },
+                    modifier = Modifier.fillMaxWidth().height(38.dp),
+                    contentPadding = PaddingValues(2.dp),
+                    colors = toolbarColors
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = "Fuente", tint = RoseDark)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Fuente", fontSize = 10.sp, color = RoseDark, maxLines = 1)
+                }
+                DropdownMenu(expanded = fonts, onDismissRequest = { fonts = false }) {
+                    listOf("Arial" to "Arial", "Serif" to "serif", "Monospace" to "monospace", "Sans serif" to "sans-serif")
+                        .forEach { (label, value) ->
+                            DropdownMenuItem(text = { Text(label) }, onClick = {
+                                web?.evaluateJavascript("document.execCommand('fontName',false,'" + value + "')", null)
+                                fonts = false
+                            })
+                        }
+                }
+            }
+            Box {
+                OutlinedButton(
+                    onClick = { sizes = true },
+                    modifier = Modifier.fillMaxWidth().height(38.dp),
+                    contentPadding = PaddingValues(2.dp),
+                    colors = toolbarColors
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Tamaño", tint = RoseDark)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Tamaño", fontSize = 10.sp, color = RoseDark, maxLines = 1)
+                }
+                DropdownMenu(expanded = sizes, onDismissRequest = { sizes = false }) {
+                    listOf("Chico" to 2, "Normal" to 3, "Grande" to 5, "Muy grande" to 6)
+                        .forEach { (label, value) ->
+                            DropdownMenuItem(text = { Text(label) }, onClick = {
+                                web?.evaluateJavascript("document.execCommand('fontSize',false,'" + value + "')", null)
+                                sizes = false
+                            })
+                        }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                OutlinedButton(
+                    onClick = { web?.evaluateJavascript("document.execCommand('bold')", null) },
+                    modifier = compactButtonModifier,
+                    contentPadding = PaddingValues(0.dp),
+                    colors = toolbarColors
+                ) { Icon(Icons.Default.FormatBold, contentDescription = "Negrita", tint = RoseDark) }
+                OutlinedButton(
+                    onClick = { web?.evaluateJavascript("document.execCommand('italic')", null) },
+                    modifier = compactButtonModifier,
+                    contentPadding = PaddingValues(0.dp),
+                    colors = toolbarColors
+                ) { Icon(Icons.Default.FormatItalic, contentDescription = "Cursiva", tint = RoseDark) }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                OutlinedButton(
+                    onClick = { web?.evaluateJavascript("document.execCommand('underline')", null) },
+                    modifier = compactButtonModifier,
+                    contentPadding = PaddingValues(0.dp),
+                    colors = toolbarColors
+                ) { Icon(Icons.Default.FormatUnderlined, contentDescription = "Subrayado", tint = RoseDark) }
+                OutlinedButton(
+                    onClick = { web?.evaluateJavascript("document.execCommand('insertHTML',false,'<table border=\\"1\\" style=\\"width:100%;border-collapse:collapse\\"><tr><td>Celda 1</td><td>Celda 2</td></tr><tr><td>Celda 3</td><td>Celda 4</td></tr></table><p><br></p>')", null) },
+                    modifier = compactButtonModifier,
+                    contentPadding = PaddingValues(0.dp),
+                    colors = toolbarColors
+                ) { Icon(Icons.Default.ViewList, contentDescription = "Insertar tabla", tint = RoseDark) }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                OutlinedButton(
+                    onClick = { web?.evaluateJavascript("document.execCommand('justifyLeft')", null) },
+                    modifier = compactButtonModifier,
+                    contentPadding = PaddingValues(0.dp),
+                    colors = toolbarColors
+                ) { Icon(Icons.Default.FormatAlignLeft, contentDescription = "Alinear a la izquierda", tint = RoseDark) }
+                OutlinedButton(
+                    onClick = { web?.evaluateJavascript("document.execCommand('justifyCenter')", null) },
+                    modifier = compactButtonModifier,
+                    contentPadding = PaddingValues(0.dp),
+                    colors = toolbarColors
+                ) { Icon(Icons.Default.FormatAlignCenter, contentDescription = "Centrar", tint = RoseDark) }
+            }
+            OutlinedButton(
+                onClick = { web?.evaluateJavascript("document.execCommand('justifyRight')", null) },
+                modifier = Modifier.size(38.dp),
+                contentPadding = PaddingValues(0.dp),
+                colors = toolbarColors
+            ) { Icon(Icons.Default.FormatAlignRight, contentDescription = "Alinear a la derecha", tint = RoseDark) }
+            Box {
+                OutlinedButton(
+                    onClick = { vars = true },
+                    modifier = Modifier.fillMaxWidth().height(38.dp),
+                    contentPadding = PaddingValues(2.dp),
+                    colors = toolbarColors
+                ) {
+                    Icon(Icons.Default.Settings, contentDescription = "Variables", tint = RoseDark)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Variable", fontSize = 10.sp, color = RoseDark, maxLines = 1)
+                }
+                DropdownMenu(expanded = vars, onDismissRequest = { vars = false }) {
+                    listOf("Fecha" to "{{fecha}}", "Hora" to "{{hora}}", "Producto" to "{{producto}}", "Cantidad" to "{{cantidad}}", "Precio" to "{{precio}}", "Total" to "{{total}}")
+                        .forEach { (label, value) ->
+                            DropdownMenuItem(text = { Text(label) }, onClick = {
+                                web?.evaluateJavascript("document.execCommand('insertText',false,'" + value + "')", null)
+                                vars = false
+                            })
+                        }
+                }
             }
         }
     }
