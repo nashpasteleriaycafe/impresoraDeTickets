@@ -17,38 +17,24 @@ object UsbEscPosPrinter {
     private const val ACTION_USB_PERMISSION = "com.nashpasteleria.impresoradetickets.USB_PERMISSION"
 
     private fun normalizeRichHtml(source: String): String {
-        // Normalize legacy <font size="1..7"> tags to explicit pixel-sized spans.
-        // Html.fromHtml otherwise treats these as relative sizes, which can be lost
-        // when the resulting text is drawn into a StaticLayout/bitmap for ESC/POS.
-        var prepared = Regex("""<font\b([^>]*)>""", RegexOption.IGNORE_CASE).replace(source) { match ->
+        // Normalize legacy <font> markup to CSS spans with explicit pixel sizes.
+        // This prevents relative HTML font sizes from collapsing in StaticLayout.
+        val prepared = Regex("""<font\b([^>]*)>""", RegexOption.IGNORE_CASE).replace(source) { match ->
             val attrs = match.groupValues[1]
             val sizeToken = Regex("""\bsize\s*=\s*["']?([1-7])["']?""", RegexOption.IGNORE_CASE)
                 .find(attrs)?.groupValues?.get(1)?.toIntOrNull()
             val face = Regex("""\bface\s*=\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
                 .find(attrs)?.groupValues?.get(1)
-            if (sizeToken == null && face == null) match.value else {
-                val px = when (sizeToken) {
-                    1 -> 10f; 2 -> 13f; 3 -> 16f; 4 -> 18f
-                    5 -> 24f; 6 -> 32f; 7 -> 42f; else -> null
-                }
-                val css = buildList {
-                    if (px != null) add("font-size:${px}px")
-                    if (!face.isNullOrBlank()) add("font-family:${face}")
-                }.joinToString(";")
-                "<span style=\"$css\">"
+            val px = when (sizeToken) {
+                1 -> 10f; 2 -> 13f; 3 -> 16f; 4 -> 18f
+                5 -> 24f; 6 -> 32f; 7 -> 42f; else -> null
             }
-        }
-        // Only close converted font tags, leaving unrelated markup intact.
-        var fontDepth = 0
-        prepared = Regex("""<font\b[^>]*>|</font\s*>""", RegexOption.IGNORE_CASE).replace(prepared) { match ->
-            if (match.value.startsWith("</", ignoreCase = true)) {
-                if (fontDepth > 0) { fontDepth--; "</span>" } else match.value
-            } else {
-                val attrs = match.value.substringAfter("font", "").substringBeforeLast(">")
-                val hasStyle = Regex("""\b(?:size|face)\s*=""", RegexOption.IGNORE_CASE).containsMatchIn(attrs)
-                if (hasStyle) { fontDepth++; match.value } else match.value
+            val css = buildString {
+                if (px != null) append("font-size:").append(px).append("px;")
+                if (!face.isNullOrBlank()) append("font-family:").append(face).append(";")
             }
-        }
+            "<span style=\"$css\">"
+        }.replace(Regex("""</font\s*>""", RegexOption.IGNORE_CASE), "</span>")
         // Android's Html.fromHtml does not reliably honor CSS inside <span>.
         // Convert each span to explicit HTML tags while preserving its own style.
         val spanClosures = mutableListOf<String>()
