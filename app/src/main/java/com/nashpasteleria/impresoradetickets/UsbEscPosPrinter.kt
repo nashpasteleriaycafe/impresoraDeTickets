@@ -33,11 +33,12 @@ object UsbEscPosPrinter {
                     .find(style)?.groupValues?.get(1)?.toFloatOrNull()
                 val htmlSize = pxSize?.let { size ->
                     when {
-                        size < 12f -> 2
-                        size < 14f -> 3
-                        size < 16f -> 4
-                        size < 20f -> 5
-                        size < 28f -> 6
+                        size <= 10f -> 1
+                        size <= 13f -> 2
+                        size <= 16f -> 3
+                        size <= 18f -> 4
+                        size <= 24f -> 5
+                        size <= 32f -> 6
                         else -> 7
                     }
                 }
@@ -51,6 +52,7 @@ object UsbEscPosPrinter {
                     append("<font")
                     if (!family.isNullOrBlank()) append(" face=\"").append(family.replace("\"", "")).append("\"")
                     if (htmlSize != null) append(" size=\"").append(htmlSize).append("\"")
+                    if (pxSize != null) append(" data-nash-size=\"").append(pxSize).append("\"")
                     append(">")
                 }
                 val closing = buildString {
@@ -63,14 +65,20 @@ object UsbEscPosPrinter {
                 opening
             }
         }
-        html = Regex("""<p\b([^>]*)>""", RegexOption.IGNORE_CASE).replace(html) { match ->
-            val attributes = match.groupValues[1]
+        html = Regex("""<(p|div|h[1-6])\b([^>]*)>""", RegexOption.IGNORE_CASE).replace(html) { match ->
+            val tag = match.groupValues[1].lowercase()
+            val attributes = match.groupValues[2]
             val alignment = Regex("""text-align\s*:\s*(left|center|right|justify)""", RegexOption.IGNORE_CASE)
                 .find(attributes)?.groupValues?.get(1)?.lowercase()
-            if (alignment != null && !Regex("""\balign\s*=""", RegexOption.IGNORE_CASE).containsMatchIn(attributes)) {
-                "<p" + attributes + " align=\"" + alignment + "\">"
+            val hasAlign = Regex("""\balign\s*=""", RegexOption.IGNORE_CASE).containsMatchIn(attributes)
+            val normalizedTag = if (tag == "div" || tag.startsWith("h")) "p" else tag
+            if (alignment != null && !hasAlign) {
+                "<" + normalizedTag + attributes + " align=\"" + alignment + "\">"
+            } else if (normalizedTag != tag) {
+                "<" + normalizedTag + attributes + ">"
             } else match.value
         }
+        html = Regex("""</(div|h[1-6])\s*>""", RegexOption.IGNORE_CASE).replace(html, "</p>")
         return html
     }
 
@@ -93,13 +101,31 @@ object UsbEscPosPrinter {
         val availableWidth = (width - margin * 2).coerceAtLeast(1)
         val source = template.content
         val containsHtml = Regex("""<[a-zA-Z][^>]*>""").containsMatchIn(source)
+        val normalizedHtml = if (containsHtml) normalizeRichHtml(source) else ""
         val parsed = if (containsHtml) {
-            android.text.Html.fromHtml(normalizeRichHtml(source), android.text.Html.FROM_HTML_MODE_LEGACY)
+            android.text.Html.fromHtml(normalizedHtml, android.text.Html.FROM_HTML_MODE_LEGACY)
         } else {
-            android.text.SpannableStringBuilder(source.replace("\r\n", "\n").replace('\r', '\n'))
+            android.text.SpannableStringBuilder(source.replace("\\r\\n", "\\n").replace('\\r', '\\n'))
         }
         val rich = android.text.SpannableStringBuilder(parsed)
-        while (rich.isNotEmpty() && rich.last() == '\n') rich.delete(rich.length - 1, rich.length)
+        if (containsHtml) {
+            // HTML font sizes are coarse; restore the original CSS pixel size on each converted span.
+            val exactSizeTag = Regex("""<font\b([^>]*)data-nash-size="([0-9.]+)"([^>]*)>(.*?)</font>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            var searchFrom = 0
+            exactSizeTag.findAll(normalizedHtml).forEach { match ->
+                val size = match.groupValues[2].toFloatOrNull()
+                val spanText = android.text.Html.fromHtml(match.groupValues[4], android.text.Html.FROM_HTML_MODE_LEGACY).toString()
+                if (size != null && spanText.isNotEmpty() && searchFrom <= rich.length) {
+                    val start = rich.indexOf(spanText, searchFrom)
+                    if (start >= 0) {
+                        val end = (start + spanText.length).coerceAtMost(rich.length)
+                        rich.setSpan(android.text.style.AbsoluteSizeSpan(size.toInt().coerceAtLeast(1), true), start, end, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        searchFrom = end
+                    }
+                }
+            }
+        }
+        while (rich.isNotEmpty() && rich.last() == '\\n') rich.delete(rich.length - 1, rich.length)
 
         val family = when (template.fontFamily) {
             "Serif" -> android.graphics.Typeface.SERIF
