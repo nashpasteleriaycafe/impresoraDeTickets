@@ -125,7 +125,7 @@ object UsbEscPosPrinter {
                 }
             }
         }
-        while (rich.isNotEmpty() && rich.last() == '\\n') rich.delete(rich.length - 1, rich.length)
+        while (rich.isNotEmpty() && rich.last() == '\n') rich.delete(rich.length - 1, rich.length)
 
         val family = when (template.fontFamily) {
             "Serif" -> android.graphics.Typeface.SERIF
