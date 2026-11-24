@@ -1184,7 +1184,13 @@ private fun RichTicketEditor(
                     colors = toolbarColors
                 ) { Icon(Icons.Default.FormatUnderlined, contentDescription = "Subrayado", tint = RoseDark) }
                 OutlinedButton(
-                    onClick = { web?.evaluateJavascript("document.execCommand('insertHTML',false,'<table border=\\"1\\" style=\\"width:100%;border-collapse:collapse\\"><tr><td>Celda 1</td><td>Celda 2</td></tr><tr><td>Celda 3</td><td>Celda 4</td></tr></table><p><br></p>')", null) },
+                    onClick = {
+                        val tableHtml = """<table border="1" style="width:100%;border-collapse:collapse"><tr><td>Celda 1</td><td>Celda 2</td></tr><tr><td>Celda 3</td><td>Celda 4</td></tr></table><p><br></p>"""
+                        web?.evaluateJavascript(
+                            "document.execCommand('insertHTML',false," + org.json.JSONObject.quote(tableHtml) + ")",
+                            null
+                        )
+                    },
                     modifier = compactButtonModifier,
                     contentPadding = PaddingValues(0.dp),
                     colors = toolbarColors
