@@ -170,6 +170,13 @@ private fun TicketApp(context: Context) {
     var newTemplateName by remember { mutableStateOf("") }
     var pdfSelectionText by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf<String?>(null) }
+    var pendingVariablePrint by remember { mutableStateOf<TicketTemplate?>(null) }
+    var variableDate by remember { mutableStateOf("") }
+    var variableTime by remember { mutableStateOf("") }
+    var variableProduct by remember { mutableStateOf("") }
+    var variableQuantity by remember { mutableStateOf("1") }
+    var variablePrice by remember { mutableStateOf("") }
+    var variableTotal by remember { mutableStateOf("0,00") }
     var activeTab by remember { mutableStateOf(AppTab.DESIGN) }
     var paperWidth by remember { mutableIntStateOf(prefs.getInt("paper_width", 58).coerceIn(40, 120)) }
     var paperWidthText by remember { mutableStateOf(paperWidth.toString()) }
@@ -265,6 +272,30 @@ private fun TicketApp(context: Context) {
         }
     }
 
+    fun calculateVariableTotal(quantity: String, price: String): String {
+        fun parseNumber(value: String): Double? =
+            value.trim().replace(".", "").replace(",", ".").toDoubleOrNull()
+        val q = parseNumber(quantity) ?: return "0,00"
+        val p = parseNumber(price) ?: return "0,00"
+        return String.format(Locale("es", "AR"), "%.2f", q * p)
+    }
+
+    fun requestTicketPrint(template: TicketTemplate) {
+        val markers = listOf("{{fecha}}", "{{hora}}", "{{producto}}", "{{cantidad}}", "{{precio}}", "{{total}}")
+        if (markers.none { template.content.contains(it) }) {
+            notice = UsbEscPosPrinter.print(context, template)
+            return
+        }
+        val now = Date()
+        variableDate = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(now)
+        variableTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
+        variableProduct = ""
+        variableQuantity = "1"
+        variablePrice = ""
+        variableTotal = "0,00"
+        pendingVariablePrint = template
+    }
+
     fun persist() {
         val arr = JSONArray()
         templates.forEach { t ->
@@ -332,7 +363,7 @@ private fun TicketApp(context: Context) {
                         IconButton(onClick = {
                             val updated = template.copy(content = traditionalHtml, designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, paperWidth = paperWidth)
                             updateTemplate(templates, updated, ::persist)
-                            notice = UsbEscPosPrinter.print(context, updated)
+                            requestTicketPrint(updated)
                         }) { Icon(Icons.Default.Print, "Imprimir", tint = RoseDark) }
                         IconButton(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }) { Icon(Icons.Default.Save, "Guardar plantilla", tint = RoseDark) }
                     }
@@ -371,7 +402,7 @@ private fun TicketApp(context: Context) {
                                 IconButton(onClick = {
                                     val updated = template.copy(content = serializeRichText(designValue.annotatedString, ticketPreviewScale), designMode = designMode, paperWidth = paperWidth)
                                     updateTemplate(templates, updated, ::persist)
-                                    notice = UsbEscPosPrinter.print(context, updated)
+                                    requestTicketPrint(updated)
                                 }) { Icon(Icons.Default.Print, "Imprimir", tint = RoseDark) }
                                 IconButton(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }) { Icon(Icons.Default.Save, "Guardar plantilla", tint = RoseDark) }
                             }
@@ -410,7 +441,7 @@ private fun TicketApp(context: Context) {
                                     IconButton(onClick = {
                                         val updated = template.copy(content = traditionalHtml, designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, paperWidth = paperWidth)
                                         updateTemplate(templates, updated, ::persist)
-                                        notice = UsbEscPosPrinter.print(context, updated)
+                                        requestTicketPrint(updated)
                                     }) { Icon(Icons.Default.Print, "Imprimir", tint = RoseDark) }
                                     IconButton(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }) { Icon(Icons.Default.Save, "Guardar plantilla", tint = RoseDark) }
                                 }
@@ -442,7 +473,7 @@ private fun TicketApp(context: Context) {
                                         IconButton(onClick = {
                                             val updated = template.copy(content = serializeRichText(designValue.annotatedString, ticketPreviewScale), designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = false, underline = false, italic = false, paperWidth = paperWidth)
                                             updateTemplate(templates, updated, ::persist)
-                                            notice = UsbEscPosPrinter.print(context, updated)
+                                            requestTicketPrint(updated)
                                         }) { Icon(Icons.Default.Print, contentDescription = "Imprimir", tint = RoseDark) }
                                         IconButton(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }) { Icon(Icons.Default.Save, contentDescription = "Guardar plantilla", tint = RoseDark) }
                                     }
@@ -471,7 +502,7 @@ private fun TicketApp(context: Context) {
                                             OutlinedButton(onClick = {
                                                 val updated = template.copy(content = traditionalHtml, designMode = designMode, fontSize = traditionalFontSize, fontFamily = traditionalFont, alignment = traditionalAlignment, bold = false, underline = false, italic = false, paperWidth = paperWidth)
                                                 updateTemplate(templates, updated, ::persist)
-                                                notice = UsbEscPosPrinter.print(context, updated)
+                                                requestTicketPrint(updated)
                                             }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Print, null); Spacer(Modifier.width(4.dp)); Text("Imprimir") }
                                             Button(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Save, null); Spacer(Modifier.width(4.dp)); Text("Guardar como") }
                                         }
@@ -480,7 +511,7 @@ private fun TicketApp(context: Context) {
                                         Text("Vista previa", fontWeight = FontWeight.SemiBold, color = Ink)
                                         TicketTextPreview(designText, paperWidth, Modifier.fillMaxWidth(), true, traditionalFontSize, traditionalFont, traditionalAlignment, traditionalBold, traditionalUnderline, traditionalItalic)
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            OutlinedButton(onClick = { val updated = template.copy(content = serializeRichText(designValue.annotatedString, ticketPreviewScale), designMode = designMode, paperWidth = paperWidth); updateTemplate(templates, updated, ::persist); notice = UsbEscPosPrinter.print(context, updated) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Print, null); Spacer(Modifier.width(4.dp)); Text("Imprimir") }
+                                            OutlinedButton(onClick = { val updated = template.copy(content = serializeRichText(designValue.annotatedString, ticketPreviewScale), designMode = designMode, paperWidth = paperWidth); updateTemplate(templates, updated, ::persist); requestTicketPrint(updated) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Print, null); Spacer(Modifier.width(4.dp)); Text("Imprimir") }
                                             Button(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Save, null); Spacer(Modifier.width(4.dp)); Text("Guardar como") }
                                         }
                                     }
@@ -762,6 +793,83 @@ private fun TicketApp(context: Context) {
             dismissButton = { OutlinedButton(onClick = { showSaveTemplateDialog = false }) { Text("Cancelar") } }
         )
     }
+    pendingVariablePrint?.let { template ->
+        val hasDate = template.content.contains("{{fecha}}")
+        val hasTime = template.content.contains("{{hora}}")
+        val hasProduct = template.content.contains("{{producto}}")
+        val hasQuantity = template.content.contains("{{cantidad}}")
+        val hasPrice = template.content.contains("{{precio}}")
+        val hasTotal = template.content.contains("{{total}}")
+        val resolvedContent = template.content
+            .replace("{{fecha}}", variableDate)
+            .replace("{{hora}}", variableTime)
+            .replace("{{producto}}", variableProduct)
+            .replace("{{cantidad}}", variableQuantity)
+            .replace("{{precio}}", variablePrice)
+            .replace("{{total}}", variableTotal)
+        val previewText = resolvedContent
+            .replace(Regex("(?i)<br\\s*/?>"), "\\n")
+            .replace(Regex("(?i)</p\\s*>|</div\\s*>|</tr\\s*>"), "\\n")
+            .replace(Regex("(?i)</td\\s*>"), "   ")
+            .replace(Regex("<[^>]*>"), "")
+            .replace("&nbsp;", " ")
+            .trim()
+        AlertDialog(
+            onDismissRequest = { pendingVariablePrint = null },
+            title = { Text("Completar variables") },
+            text = {
+                Column(
+                    Modifier.fillMaxWidth().heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Completá los datos para esta impresión. La plantilla guardada no se modifica.", fontSize = 13.sp, color = Muted)
+                    if (hasDate) OutlinedTextField(value = variableDate, onValueChange = { variableDate = it }, label = { Text("Fecha") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    if (hasTime) OutlinedTextField(value = variableTime, onValueChange = { variableTime = it }, label = { Text("Hora") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    if (hasProduct) OutlinedTextField(value = variableProduct, onValueChange = { variableProduct = it }, label = { Text("Producto") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    if (hasQuantity) OutlinedTextField(
+                        value = variableQuantity,
+                        onValueChange = { value -> variableQuantity = value; variableTotal = calculateVariableTotal(value, variablePrice) },
+                        label = { Text("Cantidad") }, singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
+                    if (hasPrice) OutlinedTextField(
+                        value = variablePrice,
+                        onValueChange = { value -> variablePrice = value; variableTotal = calculateVariableTotal(variableQuantity, value) },
+                        label = { Text("Precio unitario") }, singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
+                    if (hasTotal) OutlinedTextField(
+                        value = variableTotal,
+                        onValueChange = { variableTotal = it },
+                        label = { Text("Total (calculado; podés editarlo)") }, singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
+                    Text("Vista previa", fontWeight = FontWeight.SemiBold, color = Ink)
+                    Card(colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
+                        Text(
+                            previewText.ifBlank { "(Ticket vacío)" },
+                            Modifier.fillMaxWidth().padding(10.dp),
+                            color = Ink, fontSize = 13.sp
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val finalContent = template.content
+                        .replace("{{fecha}}", variableDate)
+                        .replace("{{hora}}", variableTime)
+                        .replace("{{producto}}", variableProduct)
+                        .replace("{{cantidad}}", variableQuantity)
+                        .replace("{{precio}}", variablePrice)
+                        .replace("{{total}}", variableTotal)
+                    pendingVariablePrint = null
+                    notice = UsbEscPosPrinter.print(context, template.copy(content = finalContent))
+                }) { Text("Imprimir") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { pendingVariablePrint = null }) { Text("Cancelar") }
+            }
+        )
+    }
+
     deleteCandidate?.let { template ->
         AlertDialog(
             onDismissRequest = { deleteCandidate = null },
