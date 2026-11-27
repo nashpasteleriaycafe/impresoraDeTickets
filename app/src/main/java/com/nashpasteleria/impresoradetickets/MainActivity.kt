@@ -808,8 +808,8 @@ private fun TicketApp(context: Context) {
             .replace("{{precio}}", variablePrice)
             .replace("{{total}}", variableTotal)
         val previewText = resolvedContent
-            .replace(Regex("(?i)<br\\s*/?>"), "\\n")
-            .replace(Regex("(?i)</p\\s*>|</div\\s*>|</tr\\s*>"), "\\n")
+            .replace(Regex("(?i)<br\\s*/?>"), "\n")
+            .replace(Regex("(?i)</p\\s*>|</div\\s*>|</tr\\s*>"), "\n")
             .replace(Regex("(?i)</td\\s*>"), "   ")
             .replace(Regex("<[^>]*>"), "")
             .replace("&nbsp;", " ")
