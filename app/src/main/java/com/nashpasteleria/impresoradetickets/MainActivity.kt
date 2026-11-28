@@ -171,6 +171,7 @@ private fun TicketApp(context: Context) {
     var pdfSelectionText by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf<String?>(null) }
     var pendingVariablePrint by remember { mutableStateOf<TicketTemplate?>(null) }
+    var automaticVarsMenu by remember { mutableStateOf(false) }
     var variableDate by remember { mutableStateOf("") }
     var variableTime by remember { mutableStateOf("") }
     var variableProduct by remember { mutableStateOf("") }
@@ -278,6 +279,16 @@ private fun TicketApp(context: Context) {
         val q = parseNumber(quantity) ?: return "0,00"
         val p = parseNumber(price) ?: return "0,00"
         return String.format(Locale("es", "AR"), "%.2f", q * p)
+    }
+
+    fun insertAutomaticVariable(marker: String) {
+        val current = designValue
+        val start = current.selection.min.coerceIn(0, current.text.length)
+        val end = current.selection.max.coerceIn(start, current.text.length)
+        val annotated = current.annotatedString.subSequence(0, start) +
+            AnnotatedString(marker) +
+            current.annotatedString.subSequence(end, current.text.length)
+        designValue = TextFieldValue(annotated, selection = TextRange(start + marker.length))
     }
 
     fun requestTicketPrint(template: TicketTemplate) {
@@ -476,6 +487,21 @@ private fun TicketApp(context: Context) {
                                             requestTicketPrint(updated)
                                         }) { Icon(Icons.Default.Print, contentDescription = "Imprimir", tint = RoseDark) }
                                         IconButton(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }) { Icon(Icons.Default.Save, contentDescription = "Guardar plantilla", tint = RoseDark) }
+
+                                        Box {
+                                            IconButton(onClick = { automaticVarsMenu = true }) {
+                                                Icon(Icons.Default.Settings, contentDescription = "Insertar variable", tint = RoseDark)
+                                            }
+                                            DropdownMenu(expanded = automaticVarsMenu, onDismissRequest = { automaticVarsMenu = false }) {
+                                                listOf("Fecha" to "{{fecha}}", "Hora" to "{{hora}}", "Producto" to "{{producto}}", "Cantidad" to "{{cantidad}}", "Precio" to "{{precio}}", "Total" to "{{total}}")
+                                                    .forEach { (label, marker) ->
+                                                        DropdownMenuItem(text = { Text(label) }, onClick = {
+                                                            insertAutomaticVariable(marker)
+                                                            automaticVarsMenu = false
+                                                        })
+                                                    }
+                                            }
+                                        }
                                     }
                                 }
                             } else {
@@ -505,6 +531,14 @@ private fun TicketApp(context: Context) {
                                                 requestTicketPrint(updated)
                                             }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Print, null); Spacer(Modifier.width(4.dp)); Text("Imprimir") }
                                             Button(onClick = { newTemplateName = ""; showSaveTemplateDialog = true }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Save, null); Spacer(Modifier.width(4.dp)); Text("Guardar como") }
+
+                                            Box {
+                                                IconButton(onClick = { automaticVarsMenu = true }) { Icon(Icons.Default.Settings, contentDescription = "Insertar variable", tint = RoseDark) }
+                                                DropdownMenu(expanded = automaticVarsMenu, onDismissRequest = { automaticVarsMenu = false }) {
+                                                    listOf("Fecha" to "{{fecha}}", "Hora" to "{{hora}}", "Producto" to "{{producto}}", "Cantidad" to "{{cantidad}}", "Precio" to "{{precio}}", "Total" to "{{total}}")
+                                                        .forEach { (label, marker) -> DropdownMenuItem(text = { Text(label) }, onClick = { insertAutomaticVariable(marker); automaticVarsMenu = false }) }
+                                                }
+                                            }
                                         }
                                     } else {
                                         OutlinedTextField(value = designValue, onValueChange = { designValue = it }, modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp), placeholder = { Text("Escribí aquí el texto del ticket…") }, label = { Text("Texto del ticket") }, minLines = 5, maxLines = 12)
